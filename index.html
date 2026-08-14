@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260813-methodology"
+      href="dashboard-assets/styles.css?v=20260814-mobile"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260813-career-top-100-rank-change"
+      src="dashboard-assets/app.js?v=20260814-mobile"
       defer
     ></script>
   </head>
@@ -93,6 +93,29 @@
         </div>
 
         <div id="error" class="error-message" role="alert" hidden></div>
+
+        <div class="mobile-sort-controls" aria-label="Sort player cards">
+          <label class="control">
+            <span>Sort cards by</span>
+            <select id="mobile-sort" aria-label="Sort player cards by">
+              <option value="value_contributed">Value Contributed</option>
+              <option value="wins_contributed">Wins Contributed</option>
+              <option value="losses_contributed">Loss VC</option>
+              <option value="value_per_game">VC per game</option>
+              <option value="postseason_rank_change">Post rank change</option>
+              <option value="games_played">Games played</option>
+              <option value="wins">Wins</option>
+              <option value="losses">Losses</option>
+              <option value="offense_value">Offense</option>
+              <option value="defense_value">Defense</option>
+              <option value="hustle_value">Hustle</option>
+              <option value="other_value">Other</option>
+            </select>
+          </label>
+          <button id="mobile-sort-direction" type="button">
+            High to low <span aria-hidden="true">↓</span>
+          </button>
+        </div>
 
         <div class="table-wrap">
           <table>
@@ -349,7 +372,25 @@
 
         <div id="trends-error" class="error-message" role="alert" hidden></div>
         <div class="trend-layout">
-          <div class="chart-wrap">
+          <div>
+            <button
+              class="mobile-chart-prompt"
+              type="button"
+              data-chart-expand="trend-chart"
+              aria-controls="trend-chart"
+              aria-expanded="false"
+            >
+              <span>Tap to view chart sideways</span>
+              <small>Opens a larger view made for landscape</small>
+            </button>
+            <div class="chart-wrap" data-chart-panel="trend-chart">
+              <div class="chart-expanded-toolbar">
+                <strong>Rolling Wins Contributed</strong>
+                <button type="button" data-chart-close>Close</button>
+              </div>
+              <p class="chart-rotate-prompt" role="status">
+                Rotate your phone sideways for the full chart.
+              </p>
             <svg
               id="trend-chart"
               viewBox="0 0 1120 580"
@@ -361,6 +402,7 @@
               </text>
             </svg>
             <div id="trend-tooltip" class="trend-tooltip" hidden></div>
+            </div>
           </div>
           <aside class="trend-legend" aria-label="Qualifying players">
             <h3>Qualifying players</h3>
@@ -474,7 +516,25 @@
 
         <div id="lift-error" class="error-message" role="alert" hidden></div>
         <div class="trend-layout">
-          <div class="chart-wrap">
+          <div>
+            <button
+              class="mobile-chart-prompt"
+              type="button"
+              data-chart-expand="lift-chart"
+              aria-controls="lift-chart"
+              aria-expanded="false"
+            >
+              <span>Tap to view chart sideways</span>
+              <small>Opens a larger view made for landscape</small>
+            </button>
+            <div class="chart-wrap" data-chart-panel="lift-chart">
+              <div class="chart-expanded-toolbar">
+                <strong>Postseason rank change</strong>
+                <button type="button" data-chart-close>Close</button>
+              </div>
+              <p class="chart-rotate-prompt" role="status">
+                Rotate your phone sideways for the full chart.
+              </p>
             <svg
               id="lift-chart"
               viewBox="0 0 1120 580"
@@ -486,6 +546,7 @@
               </text>
             </svg>
             <div id="lift-tooltip" class="trend-tooltip" hidden></div>
+            </div>
           </div>
           <aside class="trend-legend" aria-label="Postseason rank-change players">
             <h3>Qualifying players</h3>

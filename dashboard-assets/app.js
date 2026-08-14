@@ -11,6 +11,8 @@ const state = {
   activeTrendPlayer: null,
   liftPayload: null,
   activeLiftPlayer: null,
+  expandedChartPanel: null,
+  expandedChartTrigger: null,
 };
 
 const elements = {
@@ -23,6 +25,8 @@ const elements = {
   body: document.querySelector("#rankings-body"),
   error: document.querySelector("#error"),
   sortableHeadings: Array.from(document.querySelectorAll(".sortable-heading")),
+  mobileSort: document.querySelector("#mobile-sort"),
+  mobileSortDirection: document.querySelector("#mobile-sort-direction"),
   trendChart: document.querySelector("#trend-chart"),
   trendMeta: document.querySelector("#trends-meta"),
   trendError: document.querySelector("#trends-error"),
@@ -139,6 +143,16 @@ function setSortHighlight() {
         : "↓"
       : "↕";
   });
+  elements.mobileSort.value = state.sortBy;
+  elements.mobileSortDirection.innerHTML = state.sortDirection === "asc"
+    ? 'Low to high <span aria-hidden="true">↑</span>'
+    : 'High to low <span aria-hidden="true">↓</span>';
+  elements.mobileSortDirection.setAttribute(
+    "aria-label",
+    state.sortDirection === "asc"
+      ? "Sort low to high; tap to reverse"
+      : "Sort high to low; tap to reverse",
+  );
 }
 
 function renderRows(rows) {
@@ -174,23 +188,23 @@ function renderRows(rows) {
     .map(
       (row) => `
         <tr>
-          <td class="rank-number">${row.rank}</td>
+          <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
             <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
           </td>
-          <td class="numeric">${row.games_played}</td>
-          <td class="numeric">${row.wins}</td>
-          <td class="numeric">${row.losses}</td>
-          <td class="numeric category-cell">${contribution(row.offense_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell">${contribution(row.defense_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell">${contribution(row.other_value, Number(row.value_contributed))}</td>
-          <td class="numeric total-cell" title="${row.value_contributed}">${number(row.value_contributed)}</td>
-          <td class="numeric total-cell" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
-          <td class="numeric total-cell" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
-          <td class="numeric rate-cell">${rate(row.value_per_game)}</td>
-          <td class="numeric rate-cell comparison-cell">${postseasonRankChange(row)}</td>
+          <td class="numeric summary-cell" data-label="Games">${row.games_played}</td>
+          <td class="numeric summary-cell" data-label="Wins">${row.wins}</td>
+          <td class="numeric summary-cell" data-label="Losses">${row.losses}</td>
+          <td class="numeric category-cell" data-label="Offense">${contribution(row.offense_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell" data-label="Defense">${contribution(row.defense_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell" data-label="Hustle">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell" data-label="Other">${contribution(row.other_value, Number(row.value_contributed))}</td>
+          <td class="numeric total-cell" data-label="Value Contributed" title="${row.value_contributed}">${number(row.value_contributed)}</td>
+          <td class="numeric total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
+          <td class="numeric total-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
+          <td class="numeric rate-cell" data-label="VC / game">${rate(row.value_per_game)}</td>
+          <td class="numeric rate-cell comparison-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
         </tr>`,
     )
     .join("");
@@ -229,6 +243,85 @@ function sortLabel() {
     other_value: "Other",
   };
   return `${labels[state.sortBy]} ${state.sortDirection === "asc" ? "low to high" : "high to low"}`;
+}
+
+function resetExpandedChart({ restoreFocus = true } = {}) {
+  const panel = state.expandedChartPanel;
+  const trigger = state.expandedChartTrigger;
+  if (!panel) return;
+
+  panel.classList.remove("is-expanded");
+  trigger?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("chart-expanded");
+  state.expandedChartPanel = null;
+  state.expandedChartTrigger = null;
+  if (screen.orientation?.unlock) screen.orientation.unlock();
+  if (restoreFocus) trigger?.focus();
+}
+
+async function closeExpandedChart() {
+  const panel = state.expandedChartPanel;
+  if (!panel) return;
+  if (document.fullscreenElement === panel && document.exitFullscreen) {
+    try {
+      await document.exitFullscreen();
+    } catch (_error) {
+      resetExpandedChart();
+    }
+    return;
+  }
+  resetExpandedChart();
+}
+
+async function expandChart(trigger) {
+  const panel = document.querySelector(
+    `[data-chart-panel="${trigger.dataset.chartExpand}"]`,
+  );
+  if (!panel) return;
+
+  if (state.expandedChartPanel && state.expandedChartPanel !== panel) {
+    resetExpandedChart({ restoreFocus: false });
+  }
+  state.expandedChartPanel = panel;
+  state.expandedChartTrigger = trigger;
+  panel.classList.add("is-expanded");
+  trigger.setAttribute("aria-expanded", "true");
+  document.body.classList.add("chart-expanded");
+  panel.querySelector("[data-chart-close]")?.focus();
+
+  if (panel.requestFullscreen) {
+    try {
+      await panel.requestFullscreen();
+    } catch (_error) {
+      // The fixed-position view remains usable when fullscreen is unavailable.
+    }
+  }
+  if (screen.orientation?.lock) {
+    try {
+      await screen.orientation.lock("landscape");
+    } catch (_error) {
+      // iOS and some browsers require the user to rotate manually.
+    }
+  }
+}
+
+function setupMobileCharts() {
+  document.querySelectorAll("[data-chart-expand]").forEach((trigger) => {
+    trigger.addEventListener("click", () => expandChart(trigger));
+  });
+  document.querySelectorAll("[data-chart-close]").forEach((button) => {
+    button.addEventListener("click", closeExpandedChart);
+  });
+  document.addEventListener("fullscreenchange", () => {
+    if (state.expandedChartPanel && !document.fullscreenElement) {
+      resetExpandedChart();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.expandedChartPanel) {
+      closeExpandedChart();
+    }
+  });
 }
 
 function syncUrl() {
@@ -1073,6 +1166,15 @@ elements.sortableHeadings.forEach((heading) => {
     loadRankings();
   });
 });
+elements.mobileSort.addEventListener("change", () => {
+  state.sortBy = elements.mobileSort.value;
+  state.sortDirection = "desc";
+  loadRankings();
+});
+elements.mobileSortDirection.addEventListener("click", () => {
+  state.sortDirection = state.sortDirection === "desc" ? "asc" : "desc";
+  loadRankings();
+});
 elements.search.addEventListener("input", () => {
   clearTimeout(state.searchTimer);
   state.searchTimer = setTimeout(loadRankings, 250);
@@ -1092,4 +1194,5 @@ elements.liftSearch.addEventListener("input", () => {
   }, 80);
 });
 
+setupMobileCharts();
 initialize();
