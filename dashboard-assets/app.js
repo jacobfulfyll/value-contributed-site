@@ -1,0 +1,1095 @@
+const state = {
+  controller: null,
+  trendController: null,
+  liftController: null,
+  searchTimer: null,
+  trendSearchTimer: null,
+  liftSearchTimer: null,
+  sortBy: "value_contributed",
+  sortDirection: "desc",
+  trendPayload: null,
+  activeTrendPlayer: null,
+  liftPayload: null,
+  activeLiftPlayer: null,
+};
+
+const elements = {
+  season: document.querySelector("#season"),
+  phase: document.querySelector("#phase"),
+  search: document.querySelector("#search"),
+  limit: document.querySelector("#limit"),
+  title: document.querySelector("#results-title"),
+  meta: document.querySelector("#results-meta"),
+  body: document.querySelector("#rankings-body"),
+  error: document.querySelector("#error"),
+  sortableHeadings: Array.from(document.querySelectorAll(".sortable-heading")),
+  trendChart: document.querySelector("#trend-chart"),
+  trendMeta: document.querySelector("#trends-meta"),
+  trendError: document.querySelector("#trends-error"),
+  trendSearch: document.querySelector("#trend-search"),
+  trendPhases: Array.from(document.querySelectorAll('input[name="trend-phase"]')),
+  trendWindows: Array.from(document.querySelectorAll('input[name="trend-window"]')),
+  trendLegend: document.querySelector("#trend-legend-list"),
+  legendSummary: document.querySelector("#legend-summary"),
+  trendTooltip: document.querySelector("#trend-tooltip"),
+  liftChart: document.querySelector("#lift-chart"),
+  liftMeta: document.querySelector("#lift-meta"),
+  liftError: document.querySelector("#lift-error"),
+  liftSearch: document.querySelector("#lift-search"),
+  liftWindows: Array.from(document.querySelectorAll('input[name="lift-window"]')),
+  liftGroups: Array.from(document.querySelectorAll('input[name="lift-group"]')),
+  liftLegend: document.querySelector("#lift-legend-list"),
+  liftLegendSummary: document.querySelector("#lift-legend-summary"),
+  liftTooltip: document.querySelector("#lift-tooltip"),
+};
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function selectedTrendPhase() {
+  return document.querySelector('input[name="trend-phase"]:checked').value;
+}
+
+function selectedTrendWindow() {
+  return Number(document.querySelector('input[name="trend-window"]:checked').value);
+}
+
+function selectedLiftWindow() {
+  return Number(document.querySelector('input[name="lift-window"]:checked').value);
+}
+
+function selectedLiftGroup() {
+  return document.querySelector('input[name="lift-group"]:checked').value;
+}
+
+function number(value) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  }).format(Number(value));
+}
+
+function displayNumber(value) {
+  return value === null || value === undefined ? "—" : number(value);
+}
+
+function signedNumber(value, suffix = "") {
+  if (value === null || value === undefined) return "—";
+  const numericValue = Number(value);
+  return `${numericValue > 0 ? "+" : ""}${number(numericValue)}${suffix}`;
+}
+
+function signedRank(value) {
+  if (value === null || value === undefined) return "—";
+  const numericValue = Number(value);
+  return `${numericValue > 0 ? "+" : ""}${numericValue}`;
+}
+
+function compactNumber(value) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  }).format(Number(value));
+}
+
+function setLoading() {
+  elements.error.hidden = true;
+  elements.body.innerHTML = `
+    <tr class="loading-row">
+      <td colspan="14">Reading the canonical calculation…</td>
+    </tr>`;
+  elements.meta.textContent = "Loading…";
+}
+
+function setTrendLoading() {
+  elements.trendError.hidden = true;
+  elements.trendMeta.textContent = `Loading ${selectedTrendWindow()}-year history…`;
+  elements.trendLegend.innerHTML = "";
+  elements.trendChart.innerHTML = `
+    <text class="chart-loading" x="560" y="290" text-anchor="middle">
+      Reading rolling averages…
+    </text>`;
+}
+
+function setLiftLoading() {
+  elements.liftError.hidden = true;
+  elements.liftMeta.textContent = `Loading ${selectedLiftWindow()}-year rank changes…`;
+  elements.liftLegend.innerHTML = "";
+  elements.liftChart.innerHTML = `
+    <text class="chart-loading" x="560" y="290" text-anchor="middle">
+      Reading postseason rank changes…
+    </text>`;
+}
+
+function setSortHighlight() {
+  elements.sortableHeadings.forEach((heading) => {
+    const button = heading.querySelector("button[data-sort]");
+    const active = button.dataset.sort === state.sortBy;
+    heading.classList.toggle("active-sort", active);
+    heading.setAttribute(
+      "aria-sort",
+      active
+        ? state.sortDirection === "asc"
+          ? "ascending"
+          : "descending"
+        : "none",
+    );
+    button.querySelector(".sort-arrow").textContent = active
+      ? state.sortDirection === "asc"
+        ? "↑"
+        : "↓"
+      : "↕";
+  });
+}
+
+function renderRows(rows) {
+  if (!rows.length) {
+    elements.body.innerHTML = `
+      <tr class="empty-row">
+        <td colspan="14">No players match these filters.</td>
+      </tr>`;
+    return;
+  }
+
+  const contribution = (value, total) => {
+    const numericValue = Number(value);
+    const percent = Math.abs(total) > 1e-12
+      ? `${number((numericValue / total) * 100)}% of total`
+      : "No selected total";
+    const signClass = numericValue < 0 ? " negative-value" : "";
+    return `<span class="category-value${signClass}">${number(numericValue)}</span><span class="category-percent">${percent}</span>`;
+  };
+  const rate = (value) => {
+    const signClass = Number(value) < 0 ? " negative-value" : "";
+    return `<span class="rate-value${signClass}">${displayNumber(value)}</span>`;
+  };
+  const postseasonRankChange = (row) => {
+    if (row.postseason_rank_change === null) {
+      return `<span class="rate-value">—</span><span class="rate-context">No postseason comparison</span>`;
+    }
+    const title = `Regular season: #${row.regular_season_rank}, ${number(row.regular_wins_contributed)} Wins Contributed in ${row.regular_games} games; postseason: #${row.postseason_rank}, ${number(row.postseason_wins_contributed)} Wins Contributed in ${row.postseason_games} games`;
+    return `<span class="rate-value" title="${escapeHtml(title)}">${signedRank(row.postseason_rank_change)}</span><span class="rate-context">#${row.regular_season_rank} → #${row.postseason_rank}</span>`;
+  };
+
+  elements.body.innerHTML = rows
+    .map(
+      (row) => `
+        <tr>
+          <td class="rank-number">${row.rank}</td>
+          <td class="player-cell">
+            <span class="player-name">${escapeHtml(row.player_name)}</span>
+            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
+          </td>
+          <td class="numeric">${row.games_played}</td>
+          <td class="numeric">${row.wins}</td>
+          <td class="numeric">${row.losses}</td>
+          <td class="numeric category-cell">${contribution(row.offense_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell">${contribution(row.defense_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell">${contribution(row.other_value, Number(row.value_contributed))}</td>
+          <td class="numeric total-cell" title="${row.value_contributed}">${number(row.value_contributed)}</td>
+          <td class="numeric total-cell" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
+          <td class="numeric total-cell" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
+          <td class="numeric rate-cell">${rate(row.value_per_game)}</td>
+          <td class="numeric rate-cell comparison-cell">${postseasonRankChange(row)}</td>
+        </tr>`,
+    )
+    .join("");
+}
+
+function escapeHtml(value) {
+  const node = document.createElement("span");
+  node.textContent = String(value);
+  return node.innerHTML;
+}
+
+function scheduleLabel(phase) {
+  const labels = {
+    All: "Full season",
+    "Regular Season": "Regular season",
+    PlayIn: "Play-In",
+    Playoffs: "Playoffs",
+    Postseason: "Postseason",
+  };
+  return labels[phase] ?? phase;
+}
+
+function sortLabel() {
+  const labels = {
+    value_contributed: "Value Contributed",
+    wins_contributed: "Wins Contributed",
+    losses_contributed: "Loss VC",
+    value_per_game: "VC per game",
+    postseason_rank_change: "postseason rank change",
+    games_played: "games played",
+    wins: "wins",
+    losses: "losses",
+    offense_value: "Offense",
+    defense_value: "Defense",
+    hustle_value: "Hustle",
+    other_value: "Other",
+  };
+  return `${labels[state.sortBy]} ${state.sortDirection === "asc" ? "low to high" : "high to low"}`;
+}
+
+function syncUrl() {
+  const params = new URLSearchParams({
+    season: elements.season.value,
+    phase: elements.phase.value,
+    limit: elements.limit.value,
+    trend_phase: selectedTrendPhase(),
+    trend_window: String(selectedTrendWindow()),
+    lift_window: String(selectedLiftWindow()),
+    lift_group: selectedLiftGroup(),
+    sort_by: state.sortBy,
+    sort_direction: state.sortDirection,
+  });
+  if (elements.search.value.trim()) {
+    params.set("search", elements.search.value.trim());
+  }
+  history.replaceState(null, "", `?${params.toString()}`);
+}
+
+async function loadRankings() {
+  if (!elements.season.value) return;
+
+  state.controller?.abort();
+  state.controller = new AbortController();
+  setSortHighlight();
+  setLoading();
+  syncUrl();
+
+  const params = new URLSearchParams({
+    season: elements.season.value,
+    phase: elements.phase.value,
+    sort_by: state.sortBy,
+    sort_direction: state.sortDirection,
+    limit: elements.limit.value,
+    search: elements.search.value.trim(),
+  });
+
+  try {
+    const response = await fetch(`/api/rankings?${params}`, {
+      signal: state.controller.signal,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || "The rankings could not be loaded.");
+    }
+
+    const payload = await response.json();
+    const scopeLabel = payload.season === "All Seasons" ? "Career" : payload.season;
+    elements.title.textContent = `${scopeLabel} player value`;
+    elements.meta.textContent = `${scheduleLabel(payload.phase)} · ${payload.rows.length} player${payload.rows.length === 1 ? "" : "s"} · Sorted by ${sortLabel()}`;
+    renderRows(payload.rows);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    elements.body.innerHTML = "";
+    elements.meta.textContent = "";
+    elements.error.textContent = error.message;
+    elements.error.hidden = false;
+  }
+}
+
+function svgElement(tag, attributes = {}, text = null) {
+  const node = document.createElementNS(SVG_NS, tag);
+  Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, value));
+  if (text !== null) node.textContent = text;
+  return node;
+}
+
+function playerColor(index) {
+  return `hsl(${Math.round((index * 137.508 + 18) % 360)} 58% 42%)`;
+}
+
+function highlightedPlayerIds() {
+  const query = elements.trendSearch.value.trim().toLocaleLowerCase();
+  if (query) {
+    return new Set(
+      state.trendPayload.players
+        .filter((player) => player.player_name.toLocaleLowerCase().includes(query))
+        .map((player) => player.player_id),
+    );
+  }
+  return state.activeTrendPlayer ? new Set([state.activeTrendPlayer]) : new Set();
+}
+
+function applyTrendHighlight(temporaryPlayerId = null) {
+  if (!state.trendPayload) return;
+  const highlighted = temporaryPlayerId
+    ? new Set([temporaryPlayerId])
+    : highlightedPlayerIds();
+  const hasHighlight = highlighted.size > 0;
+  document.querySelectorAll("[data-trend-player]").forEach((node) => {
+    const active = highlighted.has(node.dataset.trendPlayer);
+    node.classList.toggle("is-highlighted", active);
+    node.classList.toggle("is-muted", hasHighlight && !active);
+  });
+}
+
+function trendWindowDetail(point) {
+  const missingSeasons = point.window_span - point.window_size;
+  if (point.window_span === point.window_years && missingSeasons === 0) {
+    return `${point.window_years} played season${point.window_years === 1 ? "" : "s"}`;
+  }
+  const partial = point.window_span < point.window_years
+    ? `${point.window_span}-season partial average`
+    : `${point.window_years}-season window`;
+  return missingSeasons === 0
+    ? partial
+    : `${partial}; ${missingSeasons} missed season${missingSeasons === 1 ? "" : "s"} = 0`;
+}
+
+function showTrendTooltip(event, player, point) {
+  const windowDetail = trendWindowDetail(point);
+  const qualificationRank = state.trendPayload.qualification_rank;
+  elements.trendTooltip.innerHTML = `
+    <strong>${escapeHtml(player.player_name)}</strong>
+    <span>${escapeHtml(point.season)} · ${point.games_played} GP</span>
+    <span>Season value: ${number(point.season_value)}</span>
+    <span>${point.window_years}-season average: ${number(point.rolling_average)} · ${windowDetail}</span>
+    ${point.qualifying_window ? `<em>Top-${qualificationRank} window · rank ${point.window_rank}</em>` : ""}`;
+  const wrap = elements.trendChart.parentElement.getBoundingClientRect();
+  const targetBounds = event.currentTarget?.getBoundingClientRect?.();
+  const clientX = Number.isFinite(event.clientX)
+    ? event.clientX
+    : targetBounds?.left ?? wrap.left + wrap.width / 2;
+  const clientY = Number.isFinite(event.clientY)
+    ? event.clientY
+    : targetBounds?.top ?? wrap.top + 40;
+  elements.trendTooltip.style.left = `${Math.max(8, Math.min(clientX - wrap.left + 14, wrap.width - 230))}px`;
+  elements.trendTooltip.style.top = `${Math.max(8, clientY - wrap.top - 36)}px`;
+  elements.trendTooltip.hidden = false;
+}
+
+function hideTrendTooltip() {
+  elements.trendTooltip.hidden = true;
+}
+
+function renderTrendLegend(players, windowYears, qualificationRank) {
+  elements.legendSummary.textContent = `${players.length} players reached the top ${qualificationRank} in at least one full ${windowYears}-year window`;
+  elements.trendLegend.innerHTML = players
+    .map(
+      (player, index) => `
+        <button
+          type="button"
+          class="legend-player"
+          data-trend-player="${escapeHtml(player.player_id)}"
+          title="Best ${windowYears}-season rank: ${player.best_window_rank}"
+        >
+          <span class="legend-swatch" style="--player-color: ${playerColor(index)}"></span>
+          <span>${escapeHtml(player.player_name)}</span>
+          <small>#${player.best_window_rank}</small>
+        </button>`,
+    )
+    .join("");
+  elements.trendLegend.querySelectorAll(".legend-player").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeTrendPlayer =
+        state.activeTrendPlayer === button.dataset.trendPlayer
+          ? null
+          : button.dataset.trendPlayer;
+      elements.trendSearch.value = "";
+      applyTrendHighlight();
+    });
+    button.addEventListener("mouseenter", () =>
+      applyTrendHighlight(button.dataset.trendPlayer),
+    );
+    button.addEventListener("mouseleave", () => applyTrendHighlight());
+  });
+}
+
+function renderTrendChart(payload) {
+  state.trendPayload = payload;
+  state.activeTrendPlayer = null;
+  const { players, seasons } = payload;
+  if (!players.length || !seasons.length) {
+    elements.trendChart.innerHTML = `
+      <text class="chart-loading" x="560" y="290" text-anchor="middle">
+        No players qualified in this schedule.
+      </text>`;
+    elements.trendMeta.textContent = `No qualifying ${payload.window_years}-season windows`;
+    elements.trendLegend.innerHTML = "";
+    return;
+  }
+
+  const width = 1120;
+  const height = 580;
+  const margin = { top: 28, right: 24, bottom: 86, left: 70 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const allPoints = players.flatMap((player) => player.seasons);
+  const minimum = Math.min(0, ...allPoints.map((point) => point.rolling_average));
+  const maximum = Math.max(...allPoints.map((point) => point.rolling_average));
+  const padding = Math.max(0.5, (maximum - minimum) * 0.08);
+  const yMin = minimum < 0 ? minimum - padding : 0;
+  const yMax = maximum + padding;
+  const x = (season) => {
+    const index = seasons.indexOf(season);
+    return margin.left + (index / Math.max(1, seasons.length - 1)) * plotWidth;
+  };
+  const y = (value) =>
+    margin.top + ((yMax - value) / Math.max(1e-9, yMax - yMin)) * plotHeight;
+
+  elements.trendChart.innerHTML = "";
+  const grid = svgElement("g", { class: "chart-grid" });
+  const tickCount = 5;
+  for (let index = 0; index <= tickCount; index += 1) {
+    const value = yMin + ((yMax - yMin) * index) / tickCount;
+    const yPosition = y(value);
+    grid.appendChild(
+      svgElement("line", {
+        x1: margin.left,
+        x2: width - margin.right,
+        y1: yPosition,
+        y2: yPosition,
+      }),
+    );
+    grid.appendChild(
+      svgElement(
+        "text",
+        { x: margin.left - 12, y: yPosition + 4, "text-anchor": "end" },
+        compactNumber(value),
+      ),
+    );
+  }
+  seasons.forEach((season) => {
+    const xPosition = x(season);
+    grid.appendChild(
+      svgElement("line", {
+        x1: xPosition,
+        x2: xPosition,
+        y1: margin.top,
+        y2: height - margin.bottom,
+        class: "vertical-grid",
+      }),
+    );
+    grid.appendChild(
+      svgElement(
+        "text",
+        {
+          x: xPosition,
+          y: height - margin.bottom + 23,
+          "text-anchor": "end",
+          transform: `rotate(-42 ${xPosition} ${height - margin.bottom + 23})`,
+        },
+        season,
+      ),
+    );
+  });
+  grid.appendChild(
+    svgElement(
+      "text",
+      {
+        x: 18,
+        y: margin.top + plotHeight / 2,
+        "text-anchor": "middle",
+        transform: `rotate(-90 18 ${margin.top + plotHeight / 2})`,
+        class: "axis-title",
+      },
+      "Rolling Wins Contributed",
+    ),
+  );
+  elements.trendChart.appendChild(grid);
+
+  const lineLayer = svgElement("g", { class: "trend-lines" });
+  players.forEach((player, playerIndex) => {
+    const color = playerColor(playerIndex);
+    const group = svgElement("g", {
+      class: "trend-player",
+      "data-trend-player": player.player_id,
+      style: `--player-color: ${color}`,
+    });
+    const contiguousSegments = [];
+    player.seasons.forEach((point, index) => {
+      const previous = player.seasons[index - 1];
+      if (!previous || point.season_start !== previous.season_start + 1) {
+        contiguousSegments.push([]);
+      }
+      contiguousSegments.at(-1).push(point);
+    });
+    contiguousSegments
+      .filter((segment) => segment.length > 1)
+      .forEach((segment) => {
+        group.appendChild(
+          svgElement("polyline", {
+            points: segment
+              .map((point) => `${x(point.season)},${y(point.rolling_average)}`)
+              .join(" "),
+            class: "trend-line",
+            fill: "none",
+          }),
+        );
+      });
+    player.seasons.forEach((point) => {
+      const windowDetail = trendWindowDetail(point);
+      const circle = svgElement("circle", {
+        cx: x(point.season),
+        cy: y(point.rolling_average),
+        r: point.qualifying_window ? 4.7 : 3.1,
+        class: [
+          "trend-point",
+          point.window_span < point.window_years
+            ? "partial-window"
+            : "complete-window",
+          point.window_span === point.window_years && point.window_size < point.window_years
+            ? "zero-filled-window"
+            : "",
+          point.zero_filled_season ? "zero-filled-season" : "",
+          point.qualifying_window ? "top-window" : "",
+        ].join(" "),
+        tabindex: "0",
+        role: "img",
+        "aria-label": `${player.player_name}, ${point.season}, rolling average ${number(point.rolling_average)}, ${windowDetail}`,
+      });
+      circle.addEventListener("mouseenter", (event) => {
+        applyTrendHighlight(player.player_id);
+        showTrendTooltip(event, player, point);
+      });
+      circle.addEventListener("mousemove", (event) =>
+        showTrendTooltip(event, player, point),
+      );
+      circle.addEventListener("mouseleave", () => {
+        hideTrendTooltip();
+        applyTrendHighlight();
+      });
+      circle.addEventListener("focus", (event) => {
+        applyTrendHighlight(player.player_id);
+        showTrendTooltip(event, player, point);
+      });
+      circle.addEventListener("blur", () => {
+        hideTrendTooltip();
+        applyTrendHighlight();
+      });
+      group.appendChild(circle);
+    });
+    lineLayer.appendChild(group);
+  });
+  elements.trendChart.appendChild(lineLayer);
+  renderTrendLegend(players, payload.window_years, payload.qualification_rank);
+  applyTrendHighlight();
+  elements.trendMeta.textContent = `${scheduleLabel(payload.phase)} · ${players.length} top-${payload.qualification_rank} qualifiers · ${payload.window_years}-year Wins Contributed average`;
+}
+
+async function loadTrends() {
+  state.trendController?.abort();
+  state.trendController = new AbortController();
+  setTrendLoading();
+  const params = new URLSearchParams({
+    phase: selectedTrendPhase(),
+    window_years: String(selectedTrendWindow()),
+  });
+  try {
+    const response = await fetch(`/api/rankings/rolling-trends?${params}`, {
+      signal: state.trendController.signal,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || "The rolling history could not be loaded.");
+    }
+    renderTrendChart(await response.json());
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    elements.trendChart.innerHTML = "";
+    elements.trendMeta.textContent = "";
+    elements.trendError.textContent = error.message;
+    elements.trendError.hidden = false;
+  }
+}
+
+function visibleLiftPlayers() {
+  if (!state.liftPayload) return [];
+  const group = selectedLiftGroup();
+  if (group === "top") {
+    return state.liftPayload.players.filter((player) => player.qualifies_top);
+  }
+  if (group === "bottom") {
+    return state.liftPayload.players.filter((player) => player.qualifies_bottom);
+  }
+  return state.liftPayload.players;
+}
+
+function highlightedLiftPlayerIds() {
+  const query = elements.liftSearch.value.trim().toLocaleLowerCase();
+  const players = visibleLiftPlayers();
+  if (query) {
+    return new Set(
+      players
+        .filter((player) => player.player_name.toLocaleLowerCase().includes(query))
+        .map((player) => player.player_id),
+    );
+  }
+  return state.activeLiftPlayer ? new Set([state.activeLiftPlayer]) : new Set();
+}
+
+function applyLiftHighlight(temporaryPlayerId = null) {
+  if (!state.liftPayload) return;
+  const highlighted = temporaryPlayerId
+    ? new Set([temporaryPlayerId])
+    : highlightedLiftPlayerIds();
+  const hasHighlight = highlighted.size > 0;
+  document.querySelectorAll("[data-lift-player]").forEach((node) => {
+    const active = highlighted.has(node.dataset.liftPlayer);
+    node.classList.toggle("is-highlighted", active);
+    node.classList.toggle("is-muted", hasHighlight && !active);
+  });
+}
+
+function liftWindowDetail(point) {
+  const missing = point.window_span - point.window_appearances;
+  if (point.window_span < point.window_years) {
+    return `${point.window_span}-season partial average`;
+  }
+  return missing === 0
+    ? `${point.window_years}-season window; every season compared`
+    : `${point.window_years}-season window; ${missing} missing comparison${missing === 1 ? "" : "s"} = 0`;
+}
+
+function showLiftTooltip(event, player, point) {
+  const populationDetail = `All Seasons Full-season WC #${point.career_full_season_rank}`;
+  const seasonDetail = point.comparison_season
+    ? `Regular #${point.regular_season_rank} (${number(point.regular_wins_contributed)} WC) → postseason #${point.postseason_rank} (${number(point.postseason_wins_contributed)} WC): ${signedRank(point.season_rank_change)}`
+    : "No postseason comparison; season counts as 0";
+  const qualifying = [
+    point.qualifying_top_window ? `Top-10 window · rank ${point.top_rank}` : "",
+    point.qualifying_bottom_window ? `Bottom-10 window · rank ${point.bottom_rank}` : "",
+  ].filter(Boolean).join(" · ");
+  elements.liftTooltip.innerHTML = `
+    <strong>${escapeHtml(player.player_name)}</strong>
+    <span>${escapeHtml(populationDetail)} · ${number(point.career_full_season_wins_contributed)} WC</span>
+    <span>${escapeHtml(point.season)} · ${escapeHtml(seasonDetail)}</span>
+    <span>${point.window_years}-season average: ${signedNumber(point.rolling_average)} · ${liftWindowDetail(point)}</span>
+    ${qualifying ? `<em>${escapeHtml(qualifying)}</em>` : ""}`;
+  const wrap = elements.liftChart.parentElement.getBoundingClientRect();
+  const targetBounds = event.currentTarget?.getBoundingClientRect?.();
+  const clientX = Number.isFinite(event.clientX)
+    ? event.clientX
+    : targetBounds?.left ?? wrap.left + wrap.width / 2;
+  const clientY = Number.isFinite(event.clientY)
+    ? event.clientY
+    : targetBounds?.top ?? wrap.top + 40;
+  elements.liftTooltip.style.left = `${Math.max(8, Math.min(clientX - wrap.left + 14, wrap.width - 260))}px`;
+  elements.liftTooltip.style.top = `${Math.max(8, clientY - wrap.top - 42)}px`;
+  elements.liftTooltip.hidden = false;
+}
+
+function hideLiftTooltip() {
+  elements.liftTooltip.hidden = true;
+}
+
+function liftLegendRank(player) {
+  const group = selectedLiftGroup();
+  if (group === "top") return `WC #${player.career_full_season_rank} · T#${player.best_top_rank}`;
+  if (group === "bottom") return `WC #${player.career_full_season_rank} · B#${player.best_bottom_rank}`;
+  const ranks = [];
+  if (player.best_top_rank !== null) ranks.push(`T#${player.best_top_rank}`);
+  if (player.best_bottom_rank !== null) ranks.push(`B#${player.best_bottom_rank}`);
+  return `WC #${player.career_full_season_rank} · ${ranks.join(" / ")}`;
+}
+
+function renderLiftLegend(players) {
+  const groupLabel = {
+    top: "top 10",
+    bottom: "bottom 10",
+    both: "top or bottom 10",
+  }[selectedLiftGroup()];
+  elements.liftLegendSummary.textContent = `${players.length} career top-100 players reached the ${groupLabel} in at least one full ${state.liftPayload.window_years}-year window`;
+  elements.liftLegend.innerHTML = players
+    .map((player) => {
+      const colorIndex = state.liftPayload.players.indexOf(player);
+      return `
+        <button
+          type="button"
+          class="legend-player"
+          data-lift-player="${escapeHtml(player.player_id)}"
+        >
+          <span class="legend-swatch" style="--player-color: ${playerColor(colorIndex)}"></span>
+          <span>${escapeHtml(player.player_name)}</span>
+          <small>${liftLegendRank(player)}</small>
+        </button>`;
+    })
+    .join("");
+  elements.liftLegend.querySelectorAll(".legend-player").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeLiftPlayer =
+        state.activeLiftPlayer === button.dataset.liftPlayer
+          ? null
+          : button.dataset.liftPlayer;
+      elements.liftSearch.value = "";
+      applyLiftHighlight();
+    });
+    button.addEventListener("mouseenter", () =>
+      applyLiftHighlight(button.dataset.liftPlayer),
+    );
+    button.addEventListener("mouseleave", () => applyLiftHighlight());
+  });
+}
+
+function renderLiftChart(payload = state.liftPayload) {
+  state.liftPayload = payload;
+  const players = visibleLiftPlayers();
+  const { seasons } = payload;
+  if (!players.length || !seasons.length) {
+    elements.liftChart.innerHTML = `
+      <text class="chart-loading" x="560" y="290" text-anchor="middle">
+        No qualifying postseason rank changes.
+      </text>`;
+    elements.liftMeta.textContent = "No qualifying postseason rank changes";
+    elements.liftLegend.innerHTML = "";
+    return;
+  }
+
+  const width = 1120;
+  const height = 580;
+  const margin = { top: 28, right: 24, bottom: 86, left: 72 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const allPoints = players.flatMap((player) => player.seasons);
+  const magnitude = Math.max(
+    1,
+    ...allPoints.map((point) => Math.abs(point.rolling_average)),
+  );
+  const bound = magnitude * 1.1;
+  const yMin = -bound;
+  const yMax = bound;
+  const x = (season) => {
+    const index = seasons.indexOf(season);
+    return margin.left + (index / Math.max(1, seasons.length - 1)) * plotWidth;
+  };
+  const y = (value) =>
+    margin.top + ((yMax - value) / (yMax - yMin)) * plotHeight;
+
+  elements.liftChart.innerHTML = "";
+  const grid = svgElement("g", { class: "chart-grid" });
+  const tickCount = 6;
+  for (let index = 0; index <= tickCount; index += 1) {
+    const value = yMin + ((yMax - yMin) * index) / tickCount;
+    const yPosition = y(value);
+    grid.appendChild(
+      svgElement("line", {
+        x1: margin.left,
+        x2: width - margin.right,
+        y1: yPosition,
+        y2: yPosition,
+        class: Math.abs(value) < 1e-9 ? "zero-line" : "",
+      }),
+    );
+    grid.appendChild(
+      svgElement(
+        "text",
+        { x: margin.left - 12, y: yPosition + 4, "text-anchor": "end" },
+        compactNumber(value),
+      ),
+    );
+  }
+  seasons.forEach((season) => {
+    const xPosition = x(season);
+    grid.appendChild(
+      svgElement("line", {
+        x1: xPosition,
+        x2: xPosition,
+        y1: margin.top,
+        y2: height - margin.bottom,
+        class: "vertical-grid",
+      }),
+    );
+    grid.appendChild(
+      svgElement(
+        "text",
+        {
+          x: xPosition,
+          y: height - margin.bottom + 23,
+          "text-anchor": "end",
+          transform: `rotate(-42 ${xPosition} ${height - margin.bottom + 23})`,
+        },
+        season,
+      ),
+    );
+  });
+  grid.appendChild(
+    svgElement(
+      "text",
+      {
+        x: 18,
+        y: margin.top + plotHeight / 2,
+        "text-anchor": "middle",
+        transform: `rotate(-90 18 ${margin.top + plotHeight / 2})`,
+        class: "axis-title",
+      },
+      "Postseason rank change",
+    ),
+  );
+  elements.liftChart.appendChild(grid);
+
+  const lineLayer = svgElement("g", { class: "trend-lines" });
+  players.forEach((player) => {
+    const colorIndex = payload.players.indexOf(player);
+    const color = playerColor(colorIndex);
+    const group = svgElement("g", {
+      class: "trend-player",
+      "data-lift-player": player.player_id,
+      style: `--player-color: ${color}`,
+    });
+    const contiguousSegments = [];
+    player.seasons.forEach((point, index) => {
+      const previous = player.seasons[index - 1];
+      if (!previous || point.season_start !== previous.season_start + 1) {
+        contiguousSegments.push([]);
+      }
+      contiguousSegments.at(-1).push(point);
+    });
+    contiguousSegments
+      .filter((segment) => segment.length > 1)
+      .forEach((segment) => {
+        group.appendChild(
+          svgElement("polyline", {
+            points: segment
+              .map((point) => `${x(point.season)},${y(point.rolling_average)}`)
+              .join(" "),
+            class: "trend-line",
+            fill: "none",
+          }),
+        );
+      });
+    player.seasons.forEach((point) => {
+      const circle = svgElement("circle", {
+        cx: x(point.season),
+        cy: y(point.rolling_average),
+        r: point.qualifying_top_window || point.qualifying_bottom_window ? 4.7 : 3.1,
+        class: [
+          "trend-point",
+          point.window_span < point.window_years
+            ? "partial-window"
+            : "complete-window",
+          point.window_span === point.window_years && point.window_appearances < point.window_years
+            ? "zero-filled-window"
+            : "",
+          point.zero_filled_season ? "zero-filled-season" : "",
+          point.qualifying_top_window ? "top-window" : "",
+          point.qualifying_bottom_window ? "bottom-window" : "",
+        ].join(" "),
+        tabindex: "0",
+        role: "img",
+        "aria-label": `${player.player_name}, All Seasons Full-season Wins Contributed rank ${point.career_full_season_rank}, ${point.season}, rolling postseason rank change ${signedNumber(point.rolling_average)}, ${liftWindowDetail(point)}`,
+      });
+      circle.addEventListener("mouseenter", (event) => {
+        applyLiftHighlight(player.player_id);
+        showLiftTooltip(event, player, point);
+      });
+      circle.addEventListener("mousemove", (event) =>
+        showLiftTooltip(event, player, point),
+      );
+      circle.addEventListener("mouseleave", () => {
+        hideLiftTooltip();
+        applyLiftHighlight();
+      });
+      circle.addEventListener("focus", (event) => {
+        applyLiftHighlight(player.player_id);
+        showLiftTooltip(event, player, point);
+      });
+      circle.addEventListener("blur", () => {
+        hideLiftTooltip();
+        applyLiftHighlight();
+      });
+      group.appendChild(circle);
+    });
+    lineLayer.appendChild(group);
+  });
+  elements.liftChart.appendChild(lineLayer);
+  renderLiftLegend(players);
+  applyLiftHighlight();
+  const groupLabel = {
+    top: "top-10 qualifiers",
+    bottom: "bottom-10 qualifiers",
+    both: "top/bottom-10 qualifiers",
+  }[selectedLiftGroup()];
+  elements.liftMeta.textContent = `${players.length} ${groupLabel} · ${payload.window_years}-year average · All Seasons WC top 100`;
+}
+
+async function loadLiftTrends() {
+  state.liftController?.abort();
+  state.liftController = new AbortController();
+  setLiftLoading();
+  const params = new URLSearchParams({
+    window_years: String(selectedLiftWindow()),
+  });
+  try {
+    const response = await fetch(`/api/rankings/postseason-lift-trends?${params}`, {
+      signal: state.liftController.signal,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || "The postseason rank changes could not be loaded.");
+    }
+    state.activeLiftPlayer = null;
+    renderLiftChart(await response.json());
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    elements.liftChart.innerHTML = "";
+    elements.liftMeta.textContent = "";
+    elements.liftError.textContent = error.message;
+    elements.liftError.hidden = false;
+  }
+}
+
+async function initialize() {
+  const params = new URLSearchParams(window.location.search);
+
+  try {
+    const response = await fetch("/api/rankings/options");
+    if (!response.ok) throw new Error("The season list could not be loaded.");
+    const payload = await response.json();
+
+    elements.season.innerHTML = payload.seasons
+      .map(
+        (season) =>
+          `<option value="${escapeHtml(season)}">${escapeHtml(season)}</option>`,
+      )
+      .join("");
+    const requestedSeason = params.get("season");
+    elements.season.value = payload.seasons.includes(requestedSeason)
+      ? requestedSeason
+      : payload.default_season;
+
+    const validPhases = ["All", "Regular Season", "PlayIn", "Playoffs", "Postseason"];
+    const requestedPhase = params.get("phase");
+    elements.phase.value = validPhases.includes(requestedPhase)
+      ? requestedPhase
+      : "All";
+    elements.search.value = params.get("search") || "";
+    const requestedLimit = params.get("limit");
+    elements.limit.value = ["25", "50", "100", "250"].includes(requestedLimit)
+      ? requestedLimit
+      : "50";
+
+    const requestedTrendPhase = params.get("trend_phase");
+    const validTrendPhases = ["All", "Regular Season", "Postseason"];
+    const trendPhase = validTrendPhases.includes(requestedTrendPhase)
+      ? requestedTrendPhase
+      : "All";
+    const trendPhaseInput = document.querySelector(
+      `input[name="trend-phase"][value="${trendPhase}"]`,
+    );
+    if (trendPhaseInput) trendPhaseInput.checked = true;
+
+    const requestedTrendWindow = Number(params.get("trend_window"));
+    const trendWindow = [1, 3, 5].includes(requestedTrendWindow)
+      ? requestedTrendWindow
+      : 3;
+    const trendWindowInput = document.querySelector(
+      `input[name="trend-window"][value="${trendWindow}"]`,
+    );
+    if (trendWindowInput) trendWindowInput.checked = true;
+
+    const requestedLiftWindow = Number(params.get("lift_window"));
+    const liftWindow = [1, 3, 5].includes(requestedLiftWindow)
+      ? requestedLiftWindow
+      : 3;
+    const liftWindowInput = document.querySelector(
+      `input[name="lift-window"][value="${liftWindow}"]`,
+    );
+    if (liftWindowInput) liftWindowInput.checked = true;
+
+    const requestedLiftGroup = params.get("lift_group");
+    const liftGroup = ["top", "bottom", "both"].includes(requestedLiftGroup)
+      ? requestedLiftGroup
+      : "top";
+    const liftGroupInput = document.querySelector(
+      `input[name="lift-group"][value="${liftGroup}"]`,
+    );
+    if (liftGroupInput) liftGroupInput.checked = true;
+
+    const requestedSort = params.get("sort_by");
+    const validSorts = [
+      "value_contributed",
+      "wins_contributed",
+      "losses_contributed",
+      "value_per_game",
+      "postseason_rank_change",
+      "games_played",
+      "wins",
+      "losses",
+      "offense_value",
+      "defense_value",
+      "hustle_value",
+      "other_value",
+    ];
+    state.sortBy = validSorts.includes(requestedSort)
+      ? requestedSort
+      : "value_contributed";
+    state.sortDirection = params.get("sort_direction") === "asc" ? "asc" : "desc";
+
+    await Promise.all([loadRankings(), loadTrends(), loadLiftTrends()]);
+  } catch (error) {
+    elements.body.innerHTML = "";
+    elements.error.textContent = `${error.message} Make sure local Postgres is running.`;
+    elements.error.hidden = false;
+    elements.title.textContent = "Dashboard unavailable";
+    elements.trendChart.innerHTML = "";
+    elements.liftChart.innerHTML = "";
+  }
+}
+
+elements.season.addEventListener("change", loadRankings);
+elements.phase.addEventListener("change", () => {
+  loadRankings();
+});
+elements.limit.addEventListener("change", loadRankings);
+elements.trendPhases.forEach((input) => {
+  input.addEventListener("change", () => {
+    syncUrl();
+    loadTrends();
+  });
+});
+elements.trendWindows.forEach((input) => {
+  input.addEventListener("change", () => {
+    syncUrl();
+    loadTrends();
+  });
+});
+elements.liftWindows.forEach((input) => {
+  input.addEventListener("change", () => {
+    syncUrl();
+    loadLiftTrends();
+  });
+});
+elements.liftGroups.forEach((input) => {
+  input.addEventListener("change", () => {
+    state.activeLiftPlayer = null;
+    elements.liftSearch.value = "";
+    syncUrl();
+    renderLiftChart();
+  });
+});
+elements.sortableHeadings.forEach((heading) => {
+  const button = heading.querySelector("button[data-sort]");
+  button.addEventListener("click", () => {
+    const sortBy = button.dataset.sort;
+    if (state.sortBy === sortBy) {
+      state.sortDirection = state.sortDirection === "desc" ? "asc" : "desc";
+    } else {
+      state.sortBy = sortBy;
+      state.sortDirection = "desc";
+    }
+    loadRankings();
+  });
+});
+elements.search.addEventListener("input", () => {
+  clearTimeout(state.searchTimer);
+  state.searchTimer = setTimeout(loadRankings, 250);
+});
+elements.trendSearch.addEventListener("input", () => {
+  clearTimeout(state.trendSearchTimer);
+  state.trendSearchTimer = setTimeout(() => {
+    state.activeTrendPlayer = null;
+    applyTrendHighlight();
+  }, 80);
+});
+elements.liftSearch.addEventListener("input", () => {
+  clearTimeout(state.liftSearchTimer);
+  state.liftSearchTimer = setTimeout(() => {
+    state.activeLiftPlayer = null;
+    applyLiftHighlight();
+  }, 80);
+});
+
+initialize();

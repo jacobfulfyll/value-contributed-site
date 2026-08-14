@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="A local, read-only browser for Value Contributed NBA player rankings."
+    />
+    <title>Value Contributed Rankings</title>
+    <link
+      rel="stylesheet"
+      href="dashboard-assets/styles.css?v=20260813-methodology"
+    />
+    <script src="dashboard-assets/static-api.js"></script>
+    <script
+      src="dashboard-assets/app.js?v=20260813-career-top-100-rank-change"
+      defer
+    ></script>
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="./" aria-current="page">Rankings</a>
+        <a href="how-it-works/">How it’s calculated</a>
+      </nav>
+
+      <header class="hero">
+        <div>
+          <p class="eyebrow">NBA PLAYER VALUE · LOCAL CALCULATION</p>
+          <h1>Value Contributed</h1>
+          <p class="lede">
+            Explore each player’s share of team value across every calculated
+            game, see where that value comes from, or count only the value
+            produced in wins.
+          </p>
+        </div>
+        <div class="status-card" aria-label="Calculation status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div>
+            <strong>Calculation complete</strong>
+            <span>Local output · certification pending</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="controls" aria-label="Ranking filters">
+        <label class="control">
+          <span>Season</span>
+          <select id="season" name="season" aria-label="Season"></select>
+        </label>
+
+        <label class="control control-wide">
+          <span>Schedule</span>
+          <select id="phase" name="phase" aria-label="Schedule phase">
+            <option value="All">Full season</option>
+            <option value="Regular Season">Regular season</option>
+            <option value="PlayIn">Play-In</option>
+            <option value="Playoffs">Playoffs</option>
+            <option value="Postseason">Postseason (Play-In + Playoffs)</option>
+          </select>
+        </label>
+
+        <label class="control search-control">
+          <span>Find a player</span>
+          <input
+            id="search"
+            name="search"
+            type="search"
+            placeholder="e.g. Jokić"
+            autocomplete="off"
+          />
+        </label>
+
+        <label class="control compact-control">
+          <span>Show</span>
+          <select id="limit" name="limit" aria-label="Number of results">
+            <option value="25">Top 25</option>
+            <option value="50" selected>Top 50</option>
+            <option value="100">Top 100</option>
+            <option value="250">Top 250</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="results" aria-labelledby="results-title">
+        <div class="results-heading">
+          <div>
+            <p class="section-label">PLAYER RANKINGS</p>
+            <h2 id="results-title">Loading calculated output…</h2>
+          </div>
+          <p id="results-meta" class="results-meta" aria-live="polite"></p>
+        </div>
+
+        <div id="error" class="error-message" role="alert" hidden></div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col" rowspan="2" class="rank-col">Rank</th>
+                <th scope="col" rowspan="2" class="player-col">Player</th>
+                <th
+                  scope="col"
+                  rowspan="2"
+                  class="numeric sortable-heading compact-heading"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="games_played">
+                    GP <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  rowspan="2"
+                  class="numeric sortable-heading compact-heading"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="wins">
+                    Wins <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  rowspan="2"
+                  class="numeric sortable-heading compact-heading"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="losses">
+                    Losses <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th scope="colgroup" colspan="4" class="breakdown-heading">
+                  Value source
+                </th>
+                <th scope="colgroup" colspan="3" class="breakdown-heading">
+                  Outcome totals
+                </th>
+                <th scope="colgroup" colspan="1" class="breakdown-heading">
+                  Rates
+                </th>
+                <th scope="colgroup" colspan="1" class="breakdown-heading">
+                  Rank comparison
+                </th>
+              </tr>
+              <tr class="category-headings">
+                <th
+                  id="offense-heading"
+                  scope="col"
+                  class="numeric category-offense sortable-heading"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="offense_value">
+                    Offense <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  id="defense-heading"
+                  scope="col"
+                  class="numeric category-defense sortable-heading"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="defense_value">
+                    Defense <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  id="hustle-heading"
+                  scope="col"
+                  class="numeric category-hustle sortable-heading"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="hustle_value">
+                    Hustle <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  id="other-heading"
+                  scope="col"
+                  class="numeric category-other sortable-heading"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="other_value">
+                    Other <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading"
+                  aria-sort="descending"
+                  title="Value Contributed in all selected games"
+                >
+                  <button type="button" data-sort="value_contributed">
+                    VC <span class="sort-arrow" aria-hidden="true">↓</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading"
+                  aria-sort="none"
+                  title="Value Contributed in wins"
+                >
+                  <button type="button" data-sort="wins_contributed">
+                    Wins VC <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading"
+                  aria-sort="none"
+                  title="Value Contributed in losses: Value Contributed minus Wins Contributed"
+                >
+                  <button type="button" data-sort="losses_contributed">
+                    Loss VC <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading"
+                  aria-sort="none"
+                  title="Average Value Contributed per game"
+                >
+                  <button type="button" data-sort="value_per_game">
+                    VC / game <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading comparison-heading"
+                  aria-sort="none"
+                  title="Regular-season Wins Contributed rank minus combined-postseason rank"
+                >
+                  <button type="button" data-sort="postseason_rank_change">
+                    Post rank Δ <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="rankings-body">
+              <tr class="loading-row">
+                <td colspan="14">Reading the canonical calculation…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="definition">
+          <strong>Value Contributed</strong> sums a player’s final team-value
+          share in wins and losses. <strong>Wins Contributed</strong> sums that
+          same value only when the player’s team won; <strong>Loss VC</strong>
+          is the remainder from losses. VC / game is total Value Contributed
+          divided by games played. Each game’s normalization is
+          distributed across its weighted components before they roll up into
+          <strong>Offense, Defense, Hustle, and Other</strong>, so those four
+          segments add back to Value Contributed. A game with no attributable
+          component routes its normalization-only value to Other.
+        </p>
+        <p class="definition comparison-definition">
+          <strong>Post rank Δ</strong> is regular-season Wins Contributed rank
+          minus combined-postseason Wins Contributed rank. Positive means the
+          player moved up in the postseason; negative means they fell. Both
+          ranks use the same population: players who appeared in that season’s
+          postseason. Postseason includes Play-In and playoff games, so a deep
+          run can legitimately produce a large change.
+        </p>
+      </section>
+
+      <section class="trends" aria-labelledby="trends-title">
+        <div class="results-heading trends-heading">
+          <div>
+            <p class="section-label">ROLLING FORM</p>
+            <h2 id="trends-title">Rolling Wins Contributed history</h2>
+          </div>
+          <p id="trends-meta" class="results-meta" aria-live="polite">
+            Loading rolling history…
+          </p>
+        </div>
+
+        <div class="trend-toolbar">
+          <fieldset class="trend-phase-control">
+            <legend>Graph schedule</legend>
+            <div class="segmented trend-segmented">
+              <input
+                id="trend-phase-all"
+                type="radio"
+                name="trend-phase"
+                value="All"
+                checked
+              />
+              <label for="trend-phase-all">Full season</label>
+              <input
+                id="trend-phase-regular"
+                type="radio"
+                name="trend-phase"
+                value="Regular Season"
+              />
+              <label for="trend-phase-regular">Regular season</label>
+              <input
+                id="trend-phase-postseason"
+                type="radio"
+                name="trend-phase"
+                value="Postseason"
+              />
+              <label for="trend-phase-postseason">Postseason</label>
+            </div>
+          </fieldset>
+          <fieldset class="trend-phase-control trend-window-control">
+            <legend>Average window</legend>
+            <div class="segmented trend-window-segmented">
+              <input
+                id="trend-window-one"
+                type="radio"
+                name="trend-window"
+                value="1"
+              />
+              <label for="trend-window-one">1 year</label>
+              <input
+                id="trend-window-three"
+                type="radio"
+                name="trend-window"
+                value="3"
+                checked
+              />
+              <label for="trend-window-three">3 years</label>
+              <input
+                id="trend-window-five"
+                type="radio"
+                name="trend-window"
+                value="5"
+              />
+              <label for="trend-window-five">5 years</label>
+            </div>
+          </fieldset>
+          <label class="control trend-search-control">
+            <span>Highlight a player</span>
+            <input
+              id="trend-search"
+              type="search"
+              placeholder="Search qualifying players"
+              autocomplete="off"
+            />
+          </label>
+          <p>
+            This graph always uses Wins Contributed. History begins in 2013-14;
+            one-year views qualify at top 10, Postseason multi-year views at
+            top 15, and other multi-year views at top 25.
+          </p>
+        </div>
+
+        <div id="trends-error" class="error-message" role="alert" hidden></div>
+        <div class="trend-layout">
+          <div class="chart-wrap">
+            <svg
+              id="trend-chart"
+              viewBox="0 0 1120 580"
+              role="img"
+              aria-labelledby="trends-title trends-description"
+            >
+              <text class="chart-loading" x="560" y="290" text-anchor="middle">
+                Reading rolling averages…
+              </text>
+            </svg>
+            <div id="trend-tooltip" class="trend-tooltip" hidden></div>
+          </div>
+          <aside class="trend-legend" aria-label="Qualifying players">
+            <h3>Qualifying players</h3>
+            <p id="legend-summary">
+              Players who reached the active Wins Contributed rank cutoff
+            </p>
+            <div id="trend-legend-list" class="trend-legend-list"></div>
+          </aside>
+        </div>
+
+        <p id="trends-description" class="definition trend-definition">
+          Choose a one-, three-, or five-season average. The one-year graph
+          includes players who rank in the top 10 in at least one season.
+          Three- and five-year Full season and Regular season graphs use a
+          top-25 cutoff; their Postseason graphs use top 15. Three-year
+          qualification begins in 2016-17 and five-year qualification begins
+          in 2018-19. Once qualified, every available point from 2013-14 onward
+          remains on the selected Full
+          season, Regular season, or combined Postseason chart. Hollow points
+          at the leading edge are partial averages over the seasons then
+          available; any season missed inside an established window counts as
+          zero. Leading partial points never receive a rank. Full calendar
+          windows containing a zero are ranked normally and can qualify a
+          player. Highlighted rings mark windows inside the active rank cutoff.
+          Trailing zero seasons remain visible while they still affect the
+          selected average.
+        </p>
+      </section>
+
+      <section class="trends lift-trends" aria-labelledby="lift-title">
+        <div class="results-heading trends-heading">
+          <div>
+            <p class="section-label">POSTSEASON MOVEMENT</p>
+            <h2 id="lift-title">Postseason rank-change history</h2>
+          </div>
+          <p id="lift-meta" class="results-meta" aria-live="polite">
+            Loading postseason rank changes…
+          </p>
+        </div>
+
+        <div class="trend-toolbar lift-toolbar">
+          <fieldset class="trend-phase-control trend-window-control">
+            <legend>Average window</legend>
+            <div class="segmented trend-window-segmented">
+              <input
+                id="lift-window-one"
+                type="radio"
+                name="lift-window"
+                value="1"
+              />
+              <label for="lift-window-one">1 year</label>
+              <input
+                id="lift-window-three"
+                type="radio"
+                name="lift-window"
+                value="3"
+                checked
+              />
+              <label for="lift-window-three">3 years</label>
+              <input
+                id="lift-window-five"
+                type="radio"
+                name="lift-window"
+                value="5"
+              />
+              <label for="lift-window-five">5 years</label>
+            </div>
+          </fieldset>
+          <fieldset class="trend-phase-control lift-group-control">
+            <legend>Qualifying group</legend>
+            <div class="segmented lift-group-segmented">
+              <input
+                id="lift-group-top"
+                type="radio"
+                name="lift-group"
+                value="top"
+                checked
+              />
+              <label for="lift-group-top">Top 10</label>
+              <input
+                id="lift-group-bottom"
+                type="radio"
+                name="lift-group"
+                value="bottom"
+              />
+              <label for="lift-group-bottom">Bottom 10</label>
+              <input
+                id="lift-group-both"
+                type="radio"
+                name="lift-group"
+                value="both"
+              />
+              <label for="lift-group-both">Both</label>
+            </div>
+          </fieldset>
+          <label class="control trend-search-control">
+            <span>Highlight a player</span>
+            <input
+              id="lift-search"
+              type="search"
+              placeholder="Search qualifying players"
+              autocomplete="off"
+            />
+          </label>
+          <p>
+            Positive means a player rose in the postseason; negative means they
+            fell. The population is fixed to the All Seasons, Full season Wins
+            Contributed top 100; Tyrese Haliburton is the #100 boundary.
+          </p>
+        </div>
+
+        <div id="lift-error" class="error-message" role="alert" hidden></div>
+        <div class="trend-layout">
+          <div class="chart-wrap">
+            <svg
+              id="lift-chart"
+              viewBox="0 0 1120 580"
+              role="img"
+              aria-labelledby="lift-title lift-description"
+            >
+              <text class="chart-loading" x="560" y="290" text-anchor="middle">
+                Reading postseason rank changes…
+              </text>
+            </svg>
+            <div id="lift-tooltip" class="trend-tooltip" hidden></div>
+          </div>
+          <aside class="trend-legend" aria-label="Postseason rank-change players">
+            <h3>Qualifying players</h3>
+            <p id="lift-legend-summary">
+              Players who reached the top or bottom 10
+            </p>
+            <div id="lift-legend-list" class="trend-legend-list"></div>
+          </aside>
+        </div>
+
+        <p id="lift-description" class="definition trend-definition">
+          The graph population is the top 100 in All Seasons, Full season Wins
+          Contributed; Tyrese Haliburton is #100 and everyone below him is
+          excluded. Each season compares regular-season and postseason Wins
+          Contributed ranks among members of that fixed population who appeared
+          in the combined Play-In/playoff schedule. Rank change is
+          regular-season rank minus postseason rank. The three- and five-year
+          views average consecutive calendar seasons; a population member
+          without a postseason comparison contributes zero once their window
+          has begun. Only full windows with at least one comparison qualify
+          players for the top or bottom 10, while leading partial averages
+          remain visible.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

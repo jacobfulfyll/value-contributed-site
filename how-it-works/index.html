@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="A plain-language guide to how Value Contributed turns NBA player
+      actions into game value."
+    />
+    <title>How Value Contributed Is Calculated</title>
+    <link
+      rel="stylesheet"
+      href="../dashboard-assets/styles.css?v=20260813-methodology"
+    />
+    <link
+      rel="stylesheet"
+      href="../dashboard-assets/methodology.css?v=20260813-methodology"
+    />
+    <script src="../dashboard-assets/static-api.js"></script>
+    <script
+      src="../dashboard-assets/methodology.js?v=20260813-methodology"
+      defer
+    ></script>
+  </head>
+  <body>
+    <main class="shell methodology-shell">
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="../">Rankings</a>
+        <a href="./" aria-current="page">How it’s calculated</a>
+      </nav>
+
+      <header class="hero methodology-hero">
+        <div>
+          <p class="eyebrow">THE FORMULA · PLAIN LANGUAGE</p>
+          <h1>How Value Contributed works</h1>
+          <p class="lede">
+            The stat reads each game possession by possession, gives players
+            credit or blame for recorded actions, adjusts that raw value for
+            context and playing time, and turns it into each player’s share of
+            one team-game of value.
+          </p>
+        </div>
+        <div class="status-card" aria-label="Methodology status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div>
+            <strong id="policy-name">Loading current policy…</strong>
+            <span>Calculated locally · certification pending</span>
+          </div>
+        </div>
+      </header>
+
+      <div id="methodology-error" class="error-message" role="alert" hidden></div>
+
+      <div class="methodology-layout">
+        <aside class="methodology-nav" aria-label="On this page">
+          <p class="section-label">ON THIS PAGE</p>
+          <a href="#big-picture">The big picture</a>
+          <a href="#action-values">Player action values</a>
+          <a href="#made-shots">Made-shot credit</a>
+          <a href="#shot-defense">Shot defense</a>
+          <a href="#final-score">From actions to VC</a>
+          <a href="#full-reference">Complete weight reference</a>
+          <a href="#limits">What is not captured</a>
+        </aside>
+
+        <article class="methodology-content">
+          <section id="big-picture" class="method-section method-intro">
+            <p class="section-label">THE BIG PICTURE</p>
+            <h2>One game becomes a set of player shares</h2>
+            <p class="method-lede">
+              Value Contributed does not say that a block is literally worth
+              0.8 wins. A number such as <strong>0.80</strong> is an action
+              weight applied before the game is normalized. The final result
+              answers: <em>what share of this team’s game value belongs to each
+              player?</em>
+            </p>
+
+            <ol class="calculation-steps">
+              <li>
+                <span>1</span>
+                <div>
+                  <strong>Read the possession</strong>
+                  <p>
+                    Identify the shot, pass, rebound, turnover, defensive play,
+                    foul, and any linked contributors recorded in the data.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>2</span>
+                <div>
+                  <strong>Price each action</strong>
+                  <p>
+                    Combine points or possession value with the action weights
+                    shown below. Credits are positive; mistakes are negative.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>3</span>
+                <div>
+                  <strong>Apply player context</strong>
+                  <p>
+                    Apply the player’s offense or defense factor, then account
+                    for how much of the team’s available time the player played.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>4</span>
+                <div>
+                  <strong>Normalize the team-game</strong>
+                  <p>
+                    The active players’ results are converted into nonnegative
+                    shares that add to exactly 1.0 for that team in that game.
+                  </p>
+                </div>
+              </li>
+            </ol>
+
+            <div class="definition-callout">
+              <strong>Value Contributed</strong> sums those shares in every
+              selected game, including losses. <strong>Wins Contributed</strong>
+              sums the same shares only in games the player’s team won.
+            </div>
+          </section>
+
+          <section id="action-values" class="method-section">
+            <p class="section-label">PLAYER ACTION VALUES</p>
+            <div class="section-heading-row">
+              <div>
+                <h2>The individual weights</h2>
+                <p>
+                  “Possession value” means the game-specific value of an
+                  offensive trip for the relevant team. Transfer actions move
+                  existing credit between players instead of creating another
+                  team possession of value.
+                </p>
+              </div>
+              <div class="legend-pills" aria-label="Action value legend">
+                <span class="credit-pill">Credit</span>
+                <span class="penalty-pill">Penalty</span>
+                <span class="transfer-pill">Transfer</span>
+              </div>
+            </div>
+            <div id="action-groups" class="action-groups" aria-live="polite">
+              <p class="method-loading">Reading the current policy values…</p>
+            </div>
+          </section>
+
+          <section id="made-shots" class="method-section">
+            <p class="section-label">MADE-SHOT CREDIT</p>
+            <h2>The type of basket changes who gets credit</h2>
+            <p>
+              The current policy starts with the shot’s full face value—two or
+              three points—then applies these shares to the recorded shooter and
+              assister. A self-created jumper therefore gives substantially more
+              credit to the shooter than an alley-oop does.
+            </p>
+            <div class="method-table-wrap">
+              <table class="method-table compact-method-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Shot type</th>
+                    <th scope="col" class="numeric">Shooter share</th>
+                    <th scope="col" class="numeric">Assister share</th>
+                  </tr>
+                </thead>
+                <tbody id="shot-share-body"></tbody>
+              </table>
+            </div>
+            <p class="method-note">
+              These are actor shares, not final VC. Rebounds, screens, secondary
+              assists, and other linked actions can redistribute parts of the
+              same possession’s value before team-game normalization.
+            </p>
+          </section>
+
+          <section id="shot-defense" class="method-section">
+            <p class="section-label">SHOT DEFENSE</p>
+            <h2>Defended shots and blocks use shot location</h2>
+            <p>
+              A defended miss earns <code>shot points × location rate</code>.
+              A defended make produces a penalty of
+              <code>−(shot points − opponent possession value) × rate</code>.
+              An exact block uses the shot’s face value and a rate ten
+              percentage points above the defended-shot rate.
+            </p>
+
+            <div class="defense-rate-grid">
+              <div>
+                <h3>Defended-shot rate</h3>
+                <div class="method-table-wrap">
+                  <table class="method-table rate-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Location</th>
+                        <th scope="col" class="numeric">Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dfg-rate-body"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <h3>Exact-block rate</h3>
+                <div class="method-table-wrap">
+                  <table class="method-table rate-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Blocked-shot location</th>
+                        <th scope="col" class="numeric">Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody id="block-rate-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="definition-callout block-callout">
+              <strong>Why the table still contains BLOCK = 0.80:</strong>
+              0.80 is the base engine weight and the familiar historical
+              assumption. In the current <code>volume_v2</code> calculation,
+              exact blocks use the location rates above instead. A block that
+              the offense recovers and turns into a score is recorded as a
+              zero-value diagnostic, and the same shot cannot also receive
+              defended-miss credit.
+            </div>
+          </section>
+
+          <section id="final-score" class="method-section">
+            <p class="section-label">FROM ACTIONS TO FINAL VC</p>
+            <h2>The weights are only the first layer</h2>
+
+            <div class="formula-stack">
+              <div>
+                <span>Raw action value</span>
+                <code>(points created − possessions used × PV) × action weight</code>
+              </div>
+              <div>
+                <span>Context-adjusted value</span>
+                <code>raw action value × offense or defense factor</code>
+              </div>
+              <div>
+                <span>Playing-time value</span>
+                <code>nonnegative adjusted score × player share of team time</code>
+              </div>
+              <div>
+                <span>Final game share</span>
+                <code>player playing-time value ÷ team total</code>
+              </div>
+            </div>
+
+            <p class="method-note">
+              Made-shot shooter and assister rows are the important exception
+              to the first shorthand formula: they start with the shot’s full
+              two- or three-point face value, then use the shot-type shares
+              shown above.
+            </p>
+
+            <p>
+              Before the playing-time step, if any active player has a negative
+              adjusted score, the same offset is added to every active player so
+              the lowest score becomes zero. DNPs remain zero. The team total is
+              then normalized, so every team-game closes at 1.0 even when the
+              team lost.
+            </p>
+
+            <div id="factor-policy" class="factor-grid" aria-live="polite"></div>
+          </section>
+
+          <section id="full-reference" class="method-section">
+            <p class="section-label">COMPLETE ENGINE REFERENCE</p>
+            <div class="section-heading-row reference-heading">
+              <div>
+                <h2>Every component key and base weight</h2>
+                <p>
+                  The readable cards above cover the individual basketball
+                  actions. This table exposes the full internal vocabulary,
+                  including composite possession states and zero-value
+                  diagnostics. Direct rebound and location rules can override a
+                  base component weight as noted.
+                </p>
+              </div>
+              <label class="control reference-search">
+                <span>Find a component</span>
+                <input
+                  id="weight-search"
+                  type="search"
+                  placeholder="e.g. BLOCK, ASSIST, OREB"
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+
+            <p id="reference-count" class="reference-count" aria-live="polite"></p>
+            <div class="method-table-wrap full-reference-wrap">
+              <table class="method-table full-reference-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Engine component</th>
+                    <th scope="col" class="numeric">Base weight</th>
+                    <th scope="col">Current-policy note</th>
+                  </tr>
+                </thead>
+                <tbody id="weight-reference-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="limits" class="method-section">
+            <p class="section-label">CURRENT LIMITS</p>
+            <h2>What this calculation still does not see</h2>
+            <div class="limits-grid">
+              <div>
+                <strong>No gravity or deterrence estimate</strong>
+                <p>
+                  It does not yet measure defenders avoiding a rim protector or
+                  defenders staying attached to an off-ball shooter.
+                </p>
+              </div>
+              <div>
+                <strong>No loose-ball or deflection bonus</strong>
+                <p>
+                  Those counts are excluded because their overlap with steals,
+                  rebounds, and possession changes is not reliably resolved.
+                </p>
+              </div>
+              <div>
+                <strong>Team rebounds are not player rebounds</strong>
+                <p>
+                  A team rebound remains audit information and is never spread
+                  across individual players.
+                </p>
+              </div>
+              <div>
+                <strong>Calculated, not formally certified</strong>
+                <p>
+                  The complete local calculation passed its current audits, but
+                  source freeze and independent certification remain separate.
+                </p>
+              </div>
+            </div>
+          </section>
+        </article>
+      </div>
+    </main>
+  </body>
+</html>
