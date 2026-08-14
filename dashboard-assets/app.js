@@ -3,11 +3,14 @@ const state = {
   trendController: null,
   liftController: null,
   topGamesController: null,
+  highValueRecordsController: null,
   searchTimer: null,
   trendSearchTimer: null,
   liftSearchTimer: null,
   sortBy: "value_contributed",
   sortDirection: "desc",
+  highValueSortBy: "games_played",
+  highValueSortDirection: "desc",
   trendPayload: null,
   activeTrendPlayer: null,
   liftPayload: null,
@@ -25,7 +28,9 @@ const elements = {
   meta: document.querySelector("#results-meta"),
   body: document.querySelector("#rankings-body"),
   error: document.querySelector("#error"),
-  sortableHeadings: Array.from(document.querySelectorAll(".sortable-heading")),
+  sortableHeadings: Array.from(
+    document.querySelectorAll(".rankings-table .sortable-heading"),
+  ),
   mobileSort: document.querySelector("#mobile-sort"),
   mobileSortDirection: document.querySelector("#mobile-sort-direction"),
   topGamesSeason: document.querySelector("#top-games-season"),
@@ -37,6 +42,17 @@ const elements = {
   topGamesMeta: document.querySelector("#top-games-meta"),
   topGamesBody: document.querySelector("#top-games-body"),
   topGamesError: document.querySelector("#top-games-error"),
+  highValueRecordsMeta: document.querySelector("#high-value-records-meta"),
+  highValuePlayerCount: document.querySelector("#high-value-player-count"),
+  highValueRecordsBody: document.querySelector("#high-value-records-body"),
+  highValueRecordsError: document.querySelector("#high-value-records-error"),
+  highValueSortableHeadings: Array.from(
+    document.querySelectorAll(".high-value-sortable-heading"),
+  ),
+  highValueMobileSort: document.querySelector("#high-value-mobile-sort"),
+  highValueMobileSortDirection: document.querySelector(
+    "#high-value-mobile-sort-direction",
+  ),
   trendChart: document.querySelector("#trend-chart"),
   trendMeta: document.querySelector("#trends-meta"),
   trendError: document.querySelector("#trends-error"),
@@ -90,6 +106,14 @@ function displayNumber(value) {
   return value === null || value === undefined ? "—" : number(value);
 }
 
+function percentage(value) {
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(Number(value));
+}
+
 function signedNumber(value, suffix = "") {
   if (value === null || value === undefined) return "—";
   const numericValue = Number(value);
@@ -125,6 +149,16 @@ function setTopGamesLoading() {
       <td colspan="9">Reading the highest single-game values…</td>
     </tr>`;
   elements.topGamesMeta.textContent = "Loading single-game leaders…";
+}
+
+function setHighValueRecordsLoading() {
+  elements.highValueRecordsError.hidden = true;
+  elements.highValueRecordsBody.innerHTML = `
+    <tr class="loading-row">
+      <td colspan="7">Reading .400-plus game records…</td>
+    </tr>`;
+  elements.highValuePlayerCount.textContent = "—";
+  elements.highValueRecordsMeta.textContent = "Loading qualifying-player records…";
 }
 
 function setTrendLoading() {
@@ -175,6 +209,38 @@ function setSortHighlight() {
     state.sortDirection === "asc"
       ? "Sort low to high; tap to reverse"
       : "Sort high to low; tap to reverse",
+  );
+}
+
+function setHighValueSortHighlight() {
+  elements.highValueSortableHeadings.forEach((heading) => {
+    const button = heading.querySelector("button[data-high-value-sort]");
+    const active = button.dataset.highValueSort === state.highValueSortBy;
+    heading.classList.toggle("active-sort", active);
+    heading.setAttribute(
+      "aria-sort",
+      active
+        ? state.highValueSortDirection === "asc"
+          ? "ascending"
+          : "descending"
+        : "none",
+    );
+    button.querySelector(".sort-arrow").textContent = active
+      ? state.highValueSortDirection === "asc"
+        ? "↑"
+        : "↓"
+      : "↕";
+  });
+  elements.highValueMobileSort.value = state.highValueSortBy;
+  elements.highValueMobileSortDirection.innerHTML =
+    state.highValueSortDirection === "asc"
+      ? 'Low to high <span aria-hidden="true">↑</span>'
+      : 'High to low <span aria-hidden="true">↓</span>';
+  elements.highValueMobileSortDirection.setAttribute(
+    "aria-label",
+    state.highValueSortDirection === "asc"
+      ? "Sort .400-plus records low to high; tap to reverse"
+      : "Sort .400-plus records high to low; tap to reverse",
   );
 }
 
@@ -300,6 +366,34 @@ function renderTopGames(rows) {
     .join("");
 }
 
+function renderHighValueRecords(rows) {
+  if (!rows.length) {
+    elements.highValueRecordsBody.innerHTML = `
+      <tr class="empty-row">
+        <td colspan="7">No players have a .400-plus game.</td>
+      </tr>`;
+    return;
+  }
+
+  elements.highValueRecordsBody.innerHTML = rows
+    .map(
+      (row) => `
+        <tr>
+          <td class="rank-number" data-label="Rank">${row.rank}</td>
+          <td class="player-cell">
+            <span class="player-name">${escapeHtml(row.player_name)}</span>
+            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
+          </td>
+          <td class="numeric high-value-summary-cell" data-label="Games ≥ .400">${row.games_played}</td>
+          <td class="numeric high-value-summary-cell" data-label="Wins">${row.wins}</td>
+          <td class="numeric high-value-total-cell" data-label="Value Contributed" title="${row.value_contributed}">${number(row.value_contributed)}</td>
+          <td class="numeric high-value-total-cell" data-label="Wins Contributed" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
+          <td class="numeric high-value-win-rate" data-label="Winning percentage">${percentage(row.winning_percentage)}</td>
+        </tr>`,
+    )
+    .join("");
+}
+
 function escapeHtml(value) {
   const node = document.createElement("span");
   node.textContent = String(value);
@@ -333,6 +427,17 @@ function sortLabel() {
     other_value: "Other",
   };
   return `${labels[state.sortBy]} ${state.sortDirection === "asc" ? "low to high" : "high to low"}`;
+}
+
+function highValueSortLabel() {
+  const labels = {
+    games_played: "qualifying games",
+    wins: "wins",
+    value_contributed: "Value Contributed",
+    wins_contributed: "Wins Contributed",
+    winning_percentage: "winning percentage",
+  };
+  return `${labels[state.highValueSortBy]} ${state.highValueSortDirection === "asc" ? "low to high" : "high to low"}`;
 }
 
 function resetExpandedChart({ restoreFocus = true } = {}) {
@@ -427,6 +532,8 @@ function syncUrl() {
     game_phase: elements.topGamesPhase.value,
     game_outcome: selectedTopGamesOutcome(),
     game_limit: elements.topGamesLimit.value,
+    high_value_sort_by: state.highValueSortBy,
+    high_value_sort_direction: state.highValueSortDirection,
     sort_by: state.sortBy,
     sort_direction: state.sortDirection,
   });
@@ -520,6 +627,41 @@ async function loadTopGames() {
     elements.topGamesMeta.textContent = "";
     elements.topGamesError.textContent = error.message;
     elements.topGamesError.hidden = false;
+  }
+}
+
+async function loadHighValueRecords() {
+  state.highValueRecordsController?.abort();
+  state.highValueRecordsController = new AbortController();
+  setHighValueSortHighlight();
+  setHighValueRecordsLoading();
+  syncUrl();
+
+  const params = new URLSearchParams({
+    sort_by: state.highValueSortBy,
+    sort_direction: state.highValueSortDirection,
+  });
+
+  try {
+    const response = await fetch(`/api/rankings/high-value-records?${params}`, {
+      signal: state.highValueRecordsController.signal,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || "The .400-plus records could not be loaded.");
+    }
+
+    const payload = await response.json();
+    renderHighValueRecords(payload.rows);
+    elements.highValuePlayerCount.textContent = String(payload.total_players);
+    elements.highValueRecordsMeta.textContent = `All-time · ${payload.total_players} qualifying player${payload.total_players === 1 ? "" : "s"} · Sorted by ${highValueSortLabel()}`;
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    elements.highValueRecordsBody.innerHTML = "";
+    elements.highValuePlayerCount.textContent = "—";
+    elements.highValueRecordsMeta.textContent = "";
+    elements.highValueRecordsError.textContent = error.message;
+    elements.highValueRecordsError.hidden = false;
   }
 }
 
@@ -1288,9 +1430,24 @@ async function initialize() {
       : "value_contributed";
     state.sortDirection = params.get("sort_direction") === "asc" ? "asc" : "desc";
 
+    const requestedHighValueSort = params.get("high_value_sort_by");
+    const validHighValueSorts = [
+      "games_played",
+      "wins",
+      "value_contributed",
+      "wins_contributed",
+      "winning_percentage",
+    ];
+    state.highValueSortBy = validHighValueSorts.includes(requestedHighValueSort)
+      ? requestedHighValueSort
+      : "games_played";
+    state.highValueSortDirection =
+      params.get("high_value_sort_direction") === "asc" ? "asc" : "desc";
+
     await Promise.all([
       loadRankings(),
       loadTopGames(),
+      loadHighValueRecords(),
       loadTrends(),
       loadLiftTrends(),
     ]);
@@ -1302,6 +1459,7 @@ async function initialize() {
     elements.trendChart.innerHTML = "";
     elements.liftChart.innerHTML = "";
     elements.topGamesBody.innerHTML = "";
+    elements.highValueRecordsBody.innerHTML = "";
   }
 }
 
@@ -1316,6 +1474,30 @@ elements.topGamesOutcomes.forEach((input) => {
   input.addEventListener("change", loadTopGames);
 });
 elements.topGamesLimit.addEventListener("change", loadTopGames);
+elements.highValueSortableHeadings.forEach((heading) => {
+  const button = heading.querySelector("button[data-high-value-sort]");
+  button.addEventListener("click", () => {
+    const sortBy = button.dataset.highValueSort;
+    if (state.highValueSortBy === sortBy) {
+      state.highValueSortDirection =
+        state.highValueSortDirection === "desc" ? "asc" : "desc";
+    } else {
+      state.highValueSortBy = sortBy;
+      state.highValueSortDirection = "desc";
+    }
+    loadHighValueRecords();
+  });
+});
+elements.highValueMobileSort.addEventListener("change", () => {
+  state.highValueSortBy = elements.highValueMobileSort.value;
+  state.highValueSortDirection = "desc";
+  loadHighValueRecords();
+});
+elements.highValueMobileSortDirection.addEventListener("click", () => {
+  state.highValueSortDirection =
+    state.highValueSortDirection === "desc" ? "asc" : "desc";
+  loadHighValueRecords();
+});
 elements.trendPhases.forEach((input) => {
   input.addEventListener("change", () => {
     syncUrl();

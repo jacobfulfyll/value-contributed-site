@@ -249,7 +249,8 @@ h1 {
   box-shadow: var(--shadow);
 }
 
-.top-games {
+.top-games,
+.high-value-records {
   margin-top: 18px;
   padding: 26px 28px 20px;
   border: 1px solid var(--line);
@@ -351,6 +352,63 @@ h1 {
 
 .top-games-definition {
   max-width: 970px;
+}
+
+.high-value-records-summary {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qualifier-count {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 13px;
+  border: 1px solid rgb(31 107 80 / 24%);
+  border-radius: 12px;
+  color: var(--accent-deep);
+  background: rgb(215 255 84 / 20%);
+}
+
+.qualifier-count strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.qualifier-count span {
+  max-width: 130px;
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.high-value-records-table {
+  min-width: 900px;
+}
+
+.high-value-records-table .player-col,
+.high-value-records-table .player-cell {
+  min-width: 230px;
+}
+
+.high-value-total-cell {
+  color: var(--accent-deep);
+  background: rgb(215 255 84 / 13%);
+  font-weight: 800;
+}
+
+.high-value-win-rate {
+  font-weight: 800;
+}
+
+.high-value-records-definition {
+  max-width: 980px;
 }
 
 .results-heading {
@@ -1111,6 +1169,14 @@ body.chart-expanded {
     padding: 20px 14px 18px;
   }
 
+  .high-value-records {
+    padding: 20px 14px 18px;
+  }
+
+  .high-value-records-summary {
+    align-items: flex-start;
+  }
+
   .results-meta {
     text-align: left;
   }
@@ -1167,6 +1233,10 @@ body.chart-expanded {
   }
 
   .top-games-table {
+    min-width: 0;
+  }
+
+  .high-value-records-table {
     min-width: 0;
   }
 
@@ -1327,6 +1397,48 @@ body.chart-expanded {
     min-width: 0;
   }
 
+  .high-value-records-table tbody tr:not(.loading-row, .empty-row)
+    .high-value-summary-cell {
+    grid-row: 2;
+  }
+
+  .high-value-records-table tbody tr:not(.loading-row, .empty-row)
+    .high-value-summary-cell:nth-child(3) {
+    grid-column: 1 / span 2;
+  }
+
+  .high-value-records-table tbody tr:not(.loading-row, .empty-row)
+    .high-value-summary-cell:nth-child(4) {
+    grid-column: 3 / span 2;
+  }
+
+  .high-value-records-table tbody tr:not(.loading-row, .empty-row)
+    .high-value-win-rate {
+    grid-column: 5 / span 2;
+    grid-row: 2;
+  }
+
+  .high-value-records-table tbody tr:not(.loading-row, .empty-row)
+    .high-value-total-cell {
+    grid-row: 3;
+    background: rgb(215 255 84 / 14%);
+  }
+
+  .high-value-records-table tbody tr:not(.loading-row, .empty-row)
+    .high-value-total-cell:nth-child(5) {
+    grid-column: 1 / span 3;
+  }
+
+  .high-value-records-table tbody tr:not(.loading-row, .empty-row)
+    .high-value-total-cell:nth-child(6) {
+    grid-column: 4 / span 3;
+  }
+
+  .high-value-records-table .player-col,
+  .high-value-records-table .player-cell {
+    min-width: 0;
+  }
+
   tbody tr:hover td {
     background: transparent;
   }
@@ -1345,6 +1457,10 @@ body.chart-expanded {
 
   tbody tr:hover .game-value-cell {
     background: rgb(215 255 84 / 18%);
+  }
+
+  tbody tr:hover .high-value-total-cell {
+    background: rgb(215 255 84 / 14%);
   }
 
   .loading-row,

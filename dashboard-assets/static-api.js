@@ -92,6 +92,35 @@
     });
   }
 
+  async function highValueRecordsResponse(url, init) {
+    const validSorts = new Set([
+      "games_played",
+      "wins",
+      "value_contributed",
+      "wins_contributed",
+      "winning_percentage",
+    ]);
+    const requestedSort = url.searchParams.get("sort_by") || "games_played";
+    const sortBy = validSorts.has(requestedSort) ? requestedSort : "games_played";
+    const sortDirection = url.searchParams.get("sort_direction") === "asc"
+      ? "asc"
+      : "desc";
+    const response = await staticJson("high-value-records.json", init);
+    if (!response.ok) return response;
+    const snapshot = await response.json();
+    const rows = [...snapshot.rows].sort((left, right) => {
+      const comparison = compareValues(left[sortBy], right[sortBy], sortDirection);
+      return comparison || Number(left.player_id) - Number(right.player_id);
+    });
+    rows.forEach((row, index) => { row.rank = index + 1; });
+    return jsonResponse({
+      ...snapshot,
+      sort_by: sortBy,
+      sort_direction: sortDirection,
+      rows,
+    });
+  }
+
   window.fetch = async (input, init = {}) => {
     const requestUrl = new URL(
       typeof input === "string" || input instanceof URL ? input : input.url,
@@ -103,6 +132,9 @@
     }
     if (path.endsWith("/api/methodology")) {
       return staticJson("methodology.json", init);
+    }
+    if (path.endsWith("/api/rankings/high-value-records")) {
+      return highValueRecordsResponse(requestUrl, init);
     }
     if (path.endsWith("/api/rankings/top-games")) {
       return topGamesResponse(requestUrl, init);

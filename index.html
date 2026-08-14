@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260814-playoffs-only"
+      href="dashboard-assets/styles.css?v=20260814-high-value-records"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260814-playoffs-only"
+      src="dashboard-assets/app.js?v=20260814-high-value-records"
       defer
     ></script>
   </head>
@@ -386,6 +386,137 @@
           schedule to isolate regular-season or playoff games. Playoffs excludes
           the Play-In; Postseason combines Play-In and playoff games. The
           win/loss filter reranks only the selected outcome.
+        </p>
+      </section>
+
+      <section
+        class="high-value-records"
+        aria-labelledby="high-value-records-title"
+      >
+        <div class="results-heading high-value-records-heading">
+          <div>
+            <p class="section-label">HIGH-VALUE GAME RECORDS</p>
+            <h2 id="high-value-records-title">The .400+ Game Club</h2>
+          </div>
+          <div class="high-value-records-summary">
+            <div class="qualifier-count" aria-live="polite">
+              <strong id="high-value-player-count">—</strong>
+              <span>players with a .400+ game</span>
+            </div>
+            <p
+              id="high-value-records-meta"
+              class="results-meta"
+              aria-live="polite"
+            >
+              Loading qualifying-player records…
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="high-value-records-error"
+          class="error-message"
+          role="alert"
+          hidden
+        ></div>
+
+        <div
+          class="mobile-sort-controls high-value-mobile-sort-controls"
+          aria-label="Sort .400-plus player records"
+        >
+          <label class="control">
+            <span>Sort records by</span>
+            <select
+              id="high-value-mobile-sort"
+              aria-label="Sort .400-plus player records by"
+            >
+              <option value="games_played">Qualifying games</option>
+              <option value="wins">Wins</option>
+              <option value="value_contributed">Value Contributed</option>
+              <option value="wins_contributed">Wins Contributed</option>
+              <option value="winning_percentage">Winning percentage</option>
+            </select>
+          </label>
+          <button id="high-value-mobile-sort-direction" type="button">
+            High to low <span aria-hidden="true">↓</span>
+          </button>
+        </div>
+
+        <div class="table-wrap high-value-records-table-wrap">
+          <table class="high-value-records-table">
+            <thead>
+              <tr>
+                <th scope="col" class="rank-col">Rank</th>
+                <th scope="col" class="player-col">Player</th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading high-value-sortable-heading"
+                  aria-sort="descending"
+                >
+                  <button type="button" data-high-value-sort="games_played">
+                    Games <span class="sort-arrow" aria-hidden="true">↓</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading high-value-sortable-heading"
+                  aria-sort="none"
+                >
+                  <button type="button" data-high-value-sort="wins">
+                    Wins <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading high-value-sortable-heading"
+                  aria-sort="none"
+                >
+                  <button
+                    type="button"
+                    data-high-value-sort="value_contributed"
+                  >
+                    VC <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading high-value-sortable-heading"
+                  aria-sort="none"
+                >
+                  <button
+                    type="button"
+                    data-high-value-sort="wins_contributed"
+                  >
+                    Wins VC <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading high-value-sortable-heading"
+                  aria-sort="none"
+                >
+                  <button
+                    type="button"
+                    data-high-value-sort="winning_percentage"
+                  >
+                    Win % <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="high-value-records-body">
+              <tr class="loading-row">
+                <td colspan="7">Reading .400-plus game records…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="definition high-value-records-definition">
+          Includes every player with at least one game worth
+          <strong>0.400 Value Contributed or more</strong>. Games, wins, Value
+          Contributed, Wins Contributed, and winning percentage are calculated
+          only from those qualifying games. Select any column heading to sort.
         </p>
       </section>
 
