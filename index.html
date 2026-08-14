@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260814-mobile"
+      href="dashboard-assets/styles.css?v=20260814-top-games"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260814-mobile"
+      src="dashboard-assets/app.js?v=20260814-top-games"
       defer
     ></script>
   </head>
@@ -118,7 +118,7 @@
         </div>
 
         <div class="table-wrap">
-          <table>
+          <table class="rankings-table">
             <thead>
               <tr>
                 <th scope="col" rowspan="2" class="rank-col">Rank</th>
@@ -285,6 +285,98 @@
           ranks use the same population: players who appeared in that season’s
           postseason. Postseason includes Play-In and playoff games, so a deep
           run can legitimately produce a large change.
+        </p>
+      </section>
+
+      <section class="top-games" aria-labelledby="top-games-title">
+        <div class="results-heading top-games-heading">
+          <div>
+            <p class="section-label">SINGLE-GAME LEADERBOARD</p>
+            <h2 id="top-games-title">Highest all-time games</h2>
+          </div>
+          <p id="top-games-meta" class="results-meta" aria-live="polite">
+            Loading single-game leaders…
+          </p>
+        </div>
+
+        <div class="top-games-toolbar" aria-label="Highest-game filters">
+          <label class="control">
+            <span>Schedule</span>
+            <select id="top-games-phase" aria-label="Highest-game schedule">
+              <option value="All">All games</option>
+              <option value="Regular Season">Regular season</option>
+              <option value="Postseason">Postseason</option>
+            </select>
+          </label>
+
+          <fieldset class="top-games-outcome-control">
+            <legend>Outcome</legend>
+            <div class="segmented top-games-outcome-segmented">
+              <input
+                id="top-games-outcome-both"
+                type="radio"
+                name="top-games-outcome"
+                value="Both"
+                checked
+              />
+              <label for="top-games-outcome-both">Both</label>
+              <input
+                id="top-games-outcome-wins"
+                type="radio"
+                name="top-games-outcome"
+                value="Wins"
+              />
+              <label for="top-games-outcome-wins">Wins</label>
+              <input
+                id="top-games-outcome-losses"
+                type="radio"
+                name="top-games-outcome"
+                value="Losses"
+              />
+              <label for="top-games-outcome-losses">Losses</label>
+            </div>
+          </fieldset>
+
+          <label class="control top-games-limit-control">
+            <span>Show</span>
+            <select id="top-games-limit" aria-label="Number of highest games">
+              <option value="25" selected>Top 25</option>
+              <option value="50">Top 50</option>
+              <option value="100">Top 100</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="top-games-error" class="error-message" role="alert" hidden></div>
+
+        <div class="table-wrap top-games-table-wrap">
+          <table class="top-games-table">
+            <thead>
+              <tr>
+                <th scope="col" class="rank-col">Rank</th>
+                <th scope="col" class="player-col">Player</th>
+                <th scope="col">Season</th>
+                <th scope="col">Date</th>
+                <th scope="col">Team</th>
+                <th scope="col">Opponent</th>
+                <th scope="col">Stage</th>
+                <th scope="col">Result</th>
+                <th scope="col" class="numeric">VC</th>
+              </tr>
+            </thead>
+            <tbody id="top-games-body">
+              <tr class="loading-row">
+                <td colspan="9">Reading the highest single-game values…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="definition top-games-definition">
+          Ranked by a player’s <strong>Value Contributed in one game</strong>.
+          Change the schedule to isolate regular-season or postseason games;
+          postseason combines Play-In and playoff games. The win/loss filter
+          reranks only the selected outcome.
         </p>
       </section>
 

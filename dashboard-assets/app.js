@@ -2,6 +2,7 @@ const state = {
   controller: null,
   trendController: null,
   liftController: null,
+  topGamesController: null,
   searchTimer: null,
   trendSearchTimer: null,
   liftSearchTimer: null,
@@ -27,6 +28,14 @@ const elements = {
   sortableHeadings: Array.from(document.querySelectorAll(".sortable-heading")),
   mobileSort: document.querySelector("#mobile-sort"),
   mobileSortDirection: document.querySelector("#mobile-sort-direction"),
+  topGamesPhase: document.querySelector("#top-games-phase"),
+  topGamesOutcomes: Array.from(
+    document.querySelectorAll('input[name="top-games-outcome"]'),
+  ),
+  topGamesLimit: document.querySelector("#top-games-limit"),
+  topGamesMeta: document.querySelector("#top-games-meta"),
+  topGamesBody: document.querySelector("#top-games-body"),
+  topGamesError: document.querySelector("#top-games-error"),
   trendChart: document.querySelector("#trend-chart"),
   trendMeta: document.querySelector("#trends-meta"),
   trendError: document.querySelector("#trends-error"),
@@ -63,6 +72,10 @@ function selectedLiftWindow() {
 
 function selectedLiftGroup() {
   return document.querySelector('input[name="lift-group"]:checked').value;
+}
+
+function selectedTopGamesOutcome() {
+  return document.querySelector('input[name="top-games-outcome"]:checked').value;
 }
 
 function number(value) {
@@ -102,6 +115,15 @@ function setLoading() {
       <td colspan="14">Reading the canonical calculation…</td>
     </tr>`;
   elements.meta.textContent = "Loading…";
+}
+
+function setTopGamesLoading() {
+  elements.topGamesError.hidden = true;
+  elements.topGamesBody.innerHTML = `
+    <tr class="loading-row">
+      <td colspan="9">Reading the highest single-game values…</td>
+    </tr>`;
+  elements.topGamesMeta.textContent = "Loading single-game leaders…";
 }
 
 function setTrendLoading() {
@@ -207,6 +229,73 @@ function renderRows(rows) {
           <td class="numeric rate-cell comparison-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
         </tr>`,
     )
+    .join("");
+}
+
+function displayGameDate(value) {
+  const [year, month, day] = String(value).split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function gameStageLabel(value) {
+  return {
+    "Regular Season": "Regular season",
+    PlayIn: "Play-In",
+    Playoffs: "Playoffs",
+  }[value] ?? value;
+}
+
+function renderTopGames(rows) {
+  if (!rows.length) {
+    elements.topGamesBody.innerHTML = `
+      <tr class="empty-row">
+        <td colspan="9">No games match these filters.</td>
+      </tr>`;
+    return;
+  }
+
+  elements.topGamesBody.innerHTML = rows
+    .map((row) => {
+      const venue = row.location === "home" ? "vs." : row.location === "away" ? "@" : "vs.";
+      const outcomeClass = row.win_loss ? "game-win" : "game-loss";
+      const outcomeShort = row.win_loss ? "W" : "L";
+      return `
+        <tr>
+          <td class="rank-number" data-label="Rank">${row.rank}</td>
+          <td class="player-cell">
+            <span class="player-name">${escapeHtml(row.player_name)}</span>
+            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
+          </td>
+          <td class="game-season-cell" data-label="Season">
+            <strong>${escapeHtml(row.season)}</strong>
+          </td>
+          <td class="game-date-cell" data-label="Date">
+            ${escapeHtml(displayGameDate(row.game_date))}
+          </td>
+          <td class="game-team-cell" data-label="Team">
+            <strong>${escapeHtml(row.team.abbreviation)}</strong>
+            <span>${escapeHtml(row.team.name)}</span>
+          </td>
+          <td class="game-opponent-cell" data-label="Opponent">
+            <strong>${venue} ${escapeHtml(row.opponent.abbreviation)}</strong>
+            <span>${escapeHtml(row.opponent.name)}</span>
+          </td>
+          <td class="game-stage-cell" data-label="Stage">
+            ${escapeHtml(gameStageLabel(row.season_type))}
+          </td>
+          <td class="game-outcome-cell" data-label="Result">
+            <span class="game-result ${outcomeClass}" aria-label="${escapeHtml(row.outcome)}">${outcomeShort}</span>
+          </td>
+          <td class="numeric game-value-cell" data-label="Value Contributed" title="${row.value_contributed}">
+            ${number(row.value_contributed)}
+          </td>
+        </tr>`;
+    })
     .join("");
 }
 
@@ -333,6 +422,9 @@ function syncUrl() {
     trend_window: String(selectedTrendWindow()),
     lift_window: String(selectedLiftWindow()),
     lift_group: selectedLiftGroup(),
+    game_phase: elements.topGamesPhase.value,
+    game_outcome: selectedTopGamesOutcome(),
+    game_limit: elements.topGamesLimit.value,
     sort_by: state.sortBy,
     sort_direction: state.sortDirection,
   });
@@ -380,6 +472,49 @@ async function loadRankings() {
     elements.meta.textContent = "";
     elements.error.textContent = error.message;
     elements.error.hidden = false;
+  }
+}
+
+async function loadTopGames() {
+  state.topGamesController?.abort();
+  state.topGamesController = new AbortController();
+  setTopGamesLoading();
+  syncUrl();
+
+  const params = new URLSearchParams({
+    phase: elements.topGamesPhase.value,
+    outcome: selectedTopGamesOutcome(),
+    limit: elements.topGamesLimit.value,
+  });
+
+  try {
+    const response = await fetch(`/api/rankings/top-games?${params}`, {
+      signal: state.topGamesController.signal,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || "The single-game leaders could not be loaded.");
+    }
+
+    const payload = await response.json();
+    const phaseLabel = {
+      All: "All games",
+      "Regular Season": "Regular season",
+      Postseason: "Postseason",
+    }[payload.phase] ?? payload.phase;
+    const outcomeLabel = {
+      Both: "wins and losses",
+      Wins: "wins only",
+      Losses: "losses only",
+    }[payload.outcome] ?? payload.outcome;
+    renderTopGames(payload.rows);
+    elements.topGamesMeta.textContent = `${phaseLabel} · ${outcomeLabel} · Top ${payload.rows.length}`;
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    elements.topGamesBody.innerHTML = "";
+    elements.topGamesMeta.textContent = "";
+    elements.topGamesError.textContent = error.message;
+    elements.topGamesError.hidden = false;
   }
 }
 
@@ -1091,6 +1226,27 @@ async function initialize() {
     );
     if (liftGroupInput) liftGroupInput.checked = true;
 
+    const requestedGamePhase = params.get("game_phase");
+    elements.topGamesPhase.value = ["All", "Regular Season", "Postseason"].includes(
+      requestedGamePhase,
+    )
+      ? requestedGamePhase
+      : "All";
+
+    const requestedGameOutcome = params.get("game_outcome");
+    const gameOutcome = ["Both", "Wins", "Losses"].includes(requestedGameOutcome)
+      ? requestedGameOutcome
+      : "Both";
+    const gameOutcomeInput = document.querySelector(
+      `input[name="top-games-outcome"][value="${gameOutcome}"]`,
+    );
+    if (gameOutcomeInput) gameOutcomeInput.checked = true;
+
+    const requestedGameLimit = params.get("game_limit");
+    elements.topGamesLimit.value = ["25", "50", "100"].includes(requestedGameLimit)
+      ? requestedGameLimit
+      : "25";
+
     const requestedSort = params.get("sort_by");
     const validSorts = [
       "value_contributed",
@@ -1111,7 +1267,12 @@ async function initialize() {
       : "value_contributed";
     state.sortDirection = params.get("sort_direction") === "asc" ? "asc" : "desc";
 
-    await Promise.all([loadRankings(), loadTrends(), loadLiftTrends()]);
+    await Promise.all([
+      loadRankings(),
+      loadTopGames(),
+      loadTrends(),
+      loadLiftTrends(),
+    ]);
   } catch (error) {
     elements.body.innerHTML = "";
     elements.error.textContent = `${error.message} Make sure local Postgres is running.`;
@@ -1119,6 +1280,7 @@ async function initialize() {
     elements.title.textContent = "Dashboard unavailable";
     elements.trendChart.innerHTML = "";
     elements.liftChart.innerHTML = "";
+    elements.topGamesBody.innerHTML = "";
   }
 }
 
@@ -1127,6 +1289,11 @@ elements.phase.addEventListener("change", () => {
   loadRankings();
 });
 elements.limit.addEventListener("change", loadRankings);
+elements.topGamesPhase.addEventListener("change", loadTopGames);
+elements.topGamesOutcomes.forEach((input) => {
+  input.addEventListener("change", loadTopGames);
+});
+elements.topGamesLimit.addEventListener("change", loadTopGames);
 elements.trendPhases.forEach((input) => {
   input.addEventListener("change", () => {
     syncUrl();

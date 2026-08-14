@@ -249,6 +249,106 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.top-games {
+  margin-top: 18px;
+  padding: 26px 28px 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.top-games-toolbar {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(300px, 1.25fr) minmax(120px, 0.5fr);
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f4f2ec;
+}
+
+.top-games-outcome-control {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.top-games-outcome-control legend {
+  margin: 0 0 7px 2px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.top-games-outcome-segmented {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.top-games-table {
+  min-width: 1120px;
+}
+
+.top-games-table .player-col,
+.top-games-table .player-cell {
+  min-width: 220px;
+}
+
+.game-team-cell,
+.game-opponent-cell {
+  min-width: 150px;
+}
+
+.game-team-cell strong,
+.game-team-cell span,
+.game-opponent-cell strong,
+.game-opponent-cell span {
+  display: block;
+}
+
+.game-team-cell span,
+.game-opponent-cell span {
+  margin-top: 3px;
+  color: #87928d;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.game-result {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.game-win {
+  color: var(--accent-deep);
+  background: rgb(31 107 80 / 13%);
+}
+
+.game-loss {
+  color: var(--danger);
+  background: rgb(138 45 45 / 10%);
+}
+
+.game-value-cell {
+  color: var(--accent-deep);
+  background: rgb(215 255 84 / 13%);
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.top-games-definition {
+  max-width: 970px;
+}
+
 .results-heading {
   display: flex;
   align-items: end;
@@ -1003,6 +1103,10 @@ body.chart-expanded {
     padding: 20px 14px 18px;
   }
 
+  .top-games {
+    padding: 20px 14px 18px;
+  }
+
   .results-meta {
     text-align: left;
   }
@@ -1036,6 +1140,16 @@ body.chart-expanded {
     outline-offset: 2px;
   }
 
+  .top-games-toolbar {
+    grid-template-columns: 1fr 1fr;
+    padding: 12px;
+  }
+
+  .top-games-outcome-control {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
   .table-wrap {
     overflow: visible;
     border: 0;
@@ -1046,6 +1160,10 @@ body.chart-expanded {
     display: block;
     min-width: 0;
     border-collapse: separate;
+  }
+
+  .top-games-table {
+    min-width: 0;
   }
 
   thead {
@@ -1184,6 +1302,27 @@ body.chart-expanded {
     min-width: 0;
   }
 
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-season-cell,
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-date-cell,
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-team-cell,
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-opponent-cell,
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-stage-cell,
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-outcome-cell {
+    grid-column: span 3;
+  }
+
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-value-cell {
+    grid-column: 1 / -1;
+    align-items: flex-end;
+    background: rgb(215 255 84 / 18%);
+    font-size: 1.08rem;
+  }
+
+  .top-games-table .game-team-cell,
+  .top-games-table .game-opponent-cell {
+    min-width: 0;
+  }
+
   tbody tr:hover td {
     background: transparent;
   }
@@ -1198,6 +1337,10 @@ body.chart-expanded {
 
   tbody tr:hover .total-cell {
     background: rgb(215 255 84 / 12%);
+  }
+
+  tbody tr:hover .game-value-cell {
+    background: rgb(215 255 84 / 18%);
   }
 
   .loading-row,
@@ -1321,6 +1464,19 @@ body.chart-expanded {
   .search-control,
   .compact-control {
     grid-column: 1;
+  }
+
+  .top-games-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .top-games-outcome-control,
+  .top-games-limit-control {
+    grid-column: 1;
+  }
+
+  .top-games-outcome-control {
+    grid-row: auto;
   }
 
   .trend-legend-list {

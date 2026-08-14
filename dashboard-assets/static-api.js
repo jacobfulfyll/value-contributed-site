@@ -75,6 +75,22 @@
     });
   }
 
+  async function topGamesResponse(url, init) {
+    const phase = url.searchParams.get("phase") || "All";
+    const outcome = url.searchParams.get("outcome") || "Both";
+    const limit = Math.max(1, Math.min(250, Number(url.searchParams.get("limit")) || 25));
+    const response = await staticJson(
+      `top-games/${slug(phase)}--${slug(outcome)}.json`,
+      init,
+    );
+    if (!response.ok) return response;
+    const snapshot = await response.json();
+    return jsonResponse({
+      ...snapshot,
+      rows: snapshot.rows.slice(0, limit),
+    });
+  }
+
   window.fetch = async (input, init = {}) => {
     const requestUrl = new URL(
       typeof input === "string" || input instanceof URL ? input : input.url,
@@ -86,6 +102,9 @@
     }
     if (path.endsWith("/api/methodology")) {
       return staticJson("methodology.json", init);
+    }
+    if (path.endsWith("/api/rankings/top-games")) {
+      return topGamesResponse(requestUrl, init);
     }
     if (path.endsWith("/api/rankings/rolling-trends")) {
       const phase = requestUrl.searchParams.get("phase") || "All";
