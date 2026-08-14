@@ -504,6 +504,7 @@ async function loadTopGames() {
     const phaseLabel = {
       All: "All games",
       "Regular Season": "Regular season",
+      Playoffs: "Playoffs",
       Postseason: "Postseason",
     }[payload.phase] ?? payload.phase;
     const outcomeLabel = {
@@ -1244,9 +1245,12 @@ async function initialize() {
     if (liftGroupInput) liftGroupInput.checked = true;
 
     const requestedGamePhase = params.get("game_phase");
-    elements.topGamesPhase.value = ["All", "Regular Season", "Postseason"].includes(
-      requestedGamePhase,
-    )
+    elements.topGamesPhase.value = [
+      "All",
+      "Regular Season",
+      "Playoffs",
+      "Postseason",
+    ].includes(requestedGamePhase)
       ? requestedGamePhase
       : "All";
 

@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260814-game-seasons"
+      href="dashboard-assets/styles.css?v=20260814-playoffs-only"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260814-game-seasons"
+      src="dashboard-assets/app.js?v=20260814-playoffs-only"
       defer
     ></script>
   </head>
@@ -312,6 +312,7 @@
             <select id="top-games-phase" aria-label="Highest-game schedule">
               <option value="All">All games</option>
               <option value="Regular Season">Regular season</option>
+              <option value="Playoffs">Playoffs</option>
               <option value="Postseason">Postseason</option>
             </select>
           </label>
@@ -382,9 +383,9 @@
         <p class="definition top-games-definition">
           Ranked by a player’s <strong>Value Contributed in one game</strong>.
           Select a season or keep the full all-time history, then change the
-          schedule to isolate regular-season or postseason games; postseason
-          combines Play-In and playoff games. The win/loss filter reranks only
-          the selected outcome.
+          schedule to isolate regular-season or playoff games. Playoffs excludes
+          the Play-In; Postseason combines Play-In and playoff games. The
+          win/loss filter reranks only the selected outcome.
         </p>
       </section>
 
