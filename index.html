@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260814-high-value-records"
+      href="dashboard-assets/styles.css?v=20260814-vc-per-game-comparison"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260814-high-value-records"
+      src="dashboard-assets/app.js?v=20260814-vc-per-game-comparison"
       defer
     ></script>
   </head>
@@ -102,6 +102,10 @@
               <option value="wins_contributed">Wins Contributed</option>
               <option value="losses_contributed">Loss VC</option>
               <option value="value_per_game">VC per game</option>
+              <option value="value_per_game_rank">VC/game rank</option>
+              <option value="postseason_value_per_game_difference">
+                Postseason VC/game difference
+              </option>
               <option value="postseason_rank_change">Post rank change</option>
               <option value="games_played">Games played</option>
               <option value="wins">Wins</option>
@@ -159,11 +163,11 @@
                 <th scope="colgroup" colspan="3" class="breakdown-heading">
                   Outcome totals
                 </th>
-                <th scope="colgroup" colspan="1" class="breakdown-heading">
+                <th scope="colgroup" colspan="2" class="breakdown-heading">
                   Rates
                 </th>
-                <th scope="colgroup" colspan="1" class="breakdown-heading">
-                  Rank comparison
+                <th scope="colgroup" colspan="2" class="breakdown-heading">
+                  Postseason comparison
                 </th>
               </tr>
               <tr class="category-headings">
@@ -251,6 +255,30 @@
                   scope="col"
                   class="numeric sortable-heading comparison-heading"
                   aria-sort="none"
+                  title="Value Contributed per-game rank within the active season and schedule filters"
+                >
+                  <button type="button" data-sort="value_per_game_rank">
+                    VC/G rank <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading comparison-heading"
+                  aria-sort="none"
+                  title="Combined-postseason Value Contributed per game minus regular-season Value Contributed per game"
+                >
+                  <button
+                    type="button"
+                    data-sort="postseason_value_per_game_difference"
+                  >
+                    Post VC/G Δ
+                    <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading comparison-heading"
+                  aria-sort="none"
                   title="Regular-season Wins Contributed rank minus combined-postseason rank"
                 >
                   <button type="button" data-sort="postseason_rank_change">
@@ -261,7 +289,7 @@
             </thead>
             <tbody id="rankings-body">
               <tr class="loading-row">
-                <td colspan="14">Reading the canonical calculation…</td>
+                <td colspan="16">Reading the canonical calculation…</td>
               </tr>
             </tbody>
           </table>
@@ -272,19 +300,26 @@
           share in wins and losses. <strong>Wins Contributed</strong> sums that
           same value only when the player’s team won; <strong>Loss VC</strong>
           is the remainder from losses. VC / game is total Value Contributed
-          divided by games played. Each game’s normalization is
-          distributed across its weighted components before they roll up into
+          divided by games played; <strong>VC/G rank</strong> ranks that rate
+          within the active season and schedule filters. Each game’s
+          normalization is distributed across its weighted components before
+          they roll up into
           <strong>Offense, Defense, Hustle, and Other</strong>, so those four
           segments add back to Value Contributed. A game with no attributable
           component routes its normalization-only value to Other.
         </p>
         <p class="definition comparison-definition">
-          <strong>Post rank Δ</strong> is regular-season Wins Contributed rank
-          minus combined-postseason Wins Contributed rank. Positive means the
-          player moved up in the postseason; negative means they fell. Both
+          <strong>Post VC/G Δ</strong> is combined-postseason VC per game minus
+          regular-season VC per game. Positive means the player produced more
+          value per appearance in the postseason. The comparison requires at
+          least one game in each schedule and follows the selected season;
+          All Seasons compares career rates. Postseason includes Play-In and
+          playoff games. <strong>Post rank Δ</strong> is regular-season Wins
+          Contributed rank minus combined-postseason Wins Contributed rank.
+          Positive means the player moved up in the postseason; negative means
+          they fell. Both
           ranks use the same population: players who appeared in that season’s
-          postseason. Postseason includes Play-In and playoff games, so a deep
-          run can legitimately produce a large change.
+          postseason, so a deep run can legitimately produce a large change.
         </p>
       </section>
 

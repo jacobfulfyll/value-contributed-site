@@ -137,7 +137,7 @@ function setLoading() {
   elements.error.hidden = true;
   elements.body.innerHTML = `
     <tr class="loading-row">
-      <td colspan="14">Reading the canonical calculation…</td>
+      <td colspan="16">Reading the canonical calculation…</td>
     </tr>`;
   elements.meta.textContent = "Loading…";
 }
@@ -248,7 +248,7 @@ function renderRows(rows) {
   if (!rows.length) {
     elements.body.innerHTML = `
       <tr class="empty-row">
-        <td colspan="14">No players match these filters.</td>
+        <td colspan="16">No players match these filters.</td>
       </tr>`;
     return;
   }
@@ -272,6 +272,21 @@ function renderRows(rows) {
     const title = `Regular season: #${row.regular_season_rank}, ${number(row.regular_wins_contributed)} Wins Contributed in ${row.regular_games} games; postseason: #${row.postseason_rank}, ${number(row.postseason_wins_contributed)} Wins Contributed in ${row.postseason_games} games`;
     return `<span class="rate-value" title="${escapeHtml(title)}">${signedRank(row.postseason_rank_change)}</span><span class="rate-context">#${row.regular_season_rank} → #${row.postseason_rank}</span>`;
   };
+  const valuePerGameRank = (row) => {
+    if (row.value_per_game_rank === null) {
+      return `<span class="rate-value">—</span>`;
+    }
+    return `<span class="rate-value">#${row.value_per_game_rank}</span><span class="rate-context">Active scope</span>`;
+  };
+  const postseasonValuePerGameDifference = (row) => {
+    if (row.postseason_value_per_game_difference === null) {
+      return `<span class="rate-value">—</span><span class="rate-context">No postseason comparison</span>`;
+    }
+    const regularGameLabel = `${row.regular_games} game${row.regular_games === 1 ? "" : "s"}`;
+    const postseasonGameLabel = `${row.postseason_games} game${row.postseason_games === 1 ? "" : "s"}`;
+    const title = `Regular season: ${number(row.regular_value_per_game)} VC/game in ${regularGameLabel}; postseason: ${number(row.postseason_value_per_game)} VC/game in ${postseasonGameLabel}`;
+    return `<span class="rate-value" title="${escapeHtml(title)}">${signedNumber(row.postseason_value_per_game_difference)}</span><span class="rate-context">${number(row.regular_value_per_game)} → ${number(row.postseason_value_per_game)}</span>`;
+  };
 
   elements.body.innerHTML = rows
     .map(
@@ -293,6 +308,8 @@ function renderRows(rows) {
           <td class="numeric total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
           <td class="numeric total-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
           <td class="numeric rate-cell" data-label="VC / game">${rate(row.value_per_game)}</td>
+          <td class="numeric rate-cell comparison-cell" data-label="VC/game rank">${valuePerGameRank(row)}</td>
+          <td class="numeric rate-cell comparison-cell" data-label="Post VC/game difference">${postseasonValuePerGameDifference(row)}</td>
           <td class="numeric rate-cell comparison-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
         </tr>`,
     )
@@ -417,6 +434,8 @@ function sortLabel() {
     wins_contributed: "Wins Contributed",
     losses_contributed: "Loss VC",
     value_per_game: "VC per game",
+    value_per_game_rank: "VC/game rank",
+    postseason_value_per_game_difference: "postseason VC/game difference",
     postseason_rank_change: "postseason rank change",
     games_played: "games played",
     wins: "wins",
@@ -1416,6 +1435,8 @@ async function initialize() {
       "wins_contributed",
       "losses_contributed",
       "value_per_game",
+      "value_per_game_rank",
+      "postseason_value_per_game_difference",
       "postseason_rank_change",
       "games_played",
       "wins",
@@ -1532,14 +1553,15 @@ elements.sortableHeadings.forEach((heading) => {
       state.sortDirection = state.sortDirection === "desc" ? "asc" : "desc";
     } else {
       state.sortBy = sortBy;
-      state.sortDirection = "desc";
+      state.sortDirection = sortBy === "value_per_game_rank" ? "asc" : "desc";
     }
     loadRankings();
   });
 });
 elements.mobileSort.addEventListener("change", () => {
   state.sortBy = elements.mobileSort.value;
-  state.sortDirection = "desc";
+  state.sortDirection =
+    state.sortBy === "value_per_game_rank" ? "asc" : "desc";
   loadRankings();
 });
 elements.mobileSortDirection.addEventListener("click", () => {
