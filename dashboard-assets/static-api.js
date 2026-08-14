@@ -76,11 +76,12 @@
   }
 
   async function topGamesResponse(url, init) {
+    const season = url.searchParams.get("season") || "All Seasons";
     const phase = url.searchParams.get("phase") || "All";
     const outcome = url.searchParams.get("outcome") || "Both";
     const limit = Math.max(1, Math.min(250, Number(url.searchParams.get("limit")) || 25));
     const response = await staticJson(
-      `top-games/${slug(phase)}--${slug(outcome)}.json`,
+      `top-games/${slug(season)}--${slug(phase)}--${slug(outcome)}.json`,
       init,
     );
     if (!response.ok) return response;

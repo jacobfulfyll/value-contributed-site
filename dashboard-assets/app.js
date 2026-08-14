@@ -28,6 +28,7 @@ const elements = {
   sortableHeadings: Array.from(document.querySelectorAll(".sortable-heading")),
   mobileSort: document.querySelector("#mobile-sort"),
   mobileSortDirection: document.querySelector("#mobile-sort-direction"),
+  topGamesSeason: document.querySelector("#top-games-season"),
   topGamesPhase: document.querySelector("#top-games-phase"),
   topGamesOutcomes: Array.from(
     document.querySelectorAll('input[name="top-games-outcome"]'),
@@ -422,6 +423,7 @@ function syncUrl() {
     trend_window: String(selectedTrendWindow()),
     lift_window: String(selectedLiftWindow()),
     lift_group: selectedLiftGroup(),
+    game_season: elements.topGamesSeason.value,
     game_phase: elements.topGamesPhase.value,
     game_outcome: selectedTopGamesOutcome(),
     game_limit: elements.topGamesLimit.value,
@@ -482,6 +484,7 @@ async function loadTopGames() {
   syncUrl();
 
   const params = new URLSearchParams({
+    season: elements.topGamesSeason.value,
     phase: elements.topGamesPhase.value,
     outcome: selectedTopGamesOutcome(),
     limit: elements.topGamesLimit.value,
@@ -497,6 +500,7 @@ async function loadTopGames() {
     }
 
     const payload = await response.json();
+    const seasonLabel = payload.season === "All Seasons" ? "All seasons" : payload.season;
     const phaseLabel = {
       All: "All games",
       "Regular Season": "Regular season",
@@ -508,7 +512,7 @@ async function loadTopGames() {
       Losses: "losses only",
     }[payload.outcome] ?? payload.outcome;
     renderTopGames(payload.rows);
-    elements.topGamesMeta.textContent = `${phaseLabel} · ${outcomeLabel} · Top ${payload.rows.length}`;
+    elements.topGamesMeta.textContent = `${seasonLabel} · ${phaseLabel} · ${outcomeLabel} · Top ${payload.rows.length}`;
   } catch (error) {
     if (error.name === "AbortError") return;
     elements.topGamesBody.innerHTML = "";
@@ -1178,6 +1182,19 @@ async function initialize() {
       ? requestedSeason
       : payload.default_season;
 
+    elements.topGamesSeason.innerHTML = payload.seasons
+      .map(
+        (season) =>
+          `<option value="${escapeHtml(season)}">${escapeHtml(
+            season === "All Seasons" ? "All seasons" : season,
+          )}</option>`,
+      )
+      .join("");
+    const requestedGameSeason = params.get("game_season");
+    elements.topGamesSeason.value = payload.seasons.includes(requestedGameSeason)
+      ? requestedGameSeason
+      : "All Seasons";
+
     const validPhases = ["All", "Regular Season", "PlayIn", "Playoffs", "Postseason"];
     const requestedPhase = params.get("phase");
     elements.phase.value = validPhases.includes(requestedPhase)
@@ -1289,6 +1306,7 @@ elements.phase.addEventListener("change", () => {
   loadRankings();
 });
 elements.limit.addEventListener("change", loadRankings);
+elements.topGamesSeason.addEventListener("change", loadTopGames);
 elements.topGamesPhase.addEventListener("change", loadTopGames);
 elements.topGamesOutcomes.forEach((input) => {
   input.addEventListener("change", loadTopGames);
