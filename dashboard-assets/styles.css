@@ -361,6 +361,17 @@ h1 {
   gap: 8px;
 }
 
+.high-value-records-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 360px);
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f4f2ec;
+}
+
 .qualifier-count {
   display: flex;
   align-items: center;
@@ -1212,6 +1223,11 @@ body.chart-expanded {
 
   .top-games-toolbar {
     grid-template-columns: 1fr 1fr;
+    padding: 12px;
+  }
+
+  .high-value-records-toolbar {
+    grid-template-columns: 1fr;
     padding: 12px;
   }
 

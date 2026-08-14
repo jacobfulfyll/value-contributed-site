@@ -93,6 +93,9 @@
   }
 
   async function highValueRecordsResponse(url, init) {
+    const validPhases = new Set(["All", "Regular Season", "Playoffs", "Postseason"]);
+    const requestedPhase = url.searchParams.get("phase") || "All";
+    const phase = validPhases.has(requestedPhase) ? requestedPhase : "All";
     const validSorts = new Set([
       "games_played",
       "wins",
@@ -108,13 +111,16 @@
     const response = await staticJson("high-value-records.json", init);
     if (!response.ok) return response;
     const snapshot = await response.json();
-    const rows = [...snapshot.rows].sort((left, right) => {
+    const phaseSnapshot = snapshot.phases?.[phase] ?? snapshot;
+    const rows = [...phaseSnapshot.rows].sort((left, right) => {
       const comparison = compareValues(left[sortBy], right[sortBy], sortDirection);
       return comparison || Number(left.player_id) - Number(right.player_id);
     });
     rows.forEach((row, index) => { row.rank = index + 1; });
     return jsonResponse({
       ...snapshot,
+      ...phaseSnapshot,
+      phase,
       sort_by: sortBy,
       sort_direction: sortDirection,
       rows,

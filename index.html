@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260814-vc-per-game-comparison"
+      href="dashboard-assets/styles.css?v=20260814-high-value-schedule"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260814-vc-per-game-comparison"
+      src="dashboard-assets/app.js?v=20260814-high-value-schedule"
       defer
     ></script>
   </head>
@@ -449,6 +449,26 @@
         </div>
 
         <div
+          class="high-value-records-toolbar"
+          aria-label=".400-plus game schedule filter"
+        >
+          <label class="control">
+            <span>Schedule</span>
+            <select
+              id="high-value-phase"
+              aria-label=".400-plus game schedule"
+            >
+              <option value="All">All games</option>
+              <option value="Regular Season">Regular season</option>
+              <option value="Playoffs">Playoffs (no Play-In)</option>
+              <option value="Postseason">
+                Postseason (Play-In + Playoffs)
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <div
           id="high-value-records-error"
           class="error-message"
           role="alert"
@@ -551,7 +571,10 @@
           Includes every player with at least one game worth
           <strong>0.400 Value Contributed or more</strong>. Games, wins, Value
           Contributed, Wins Contributed, and winning percentage are calculated
-          only from those qualifying games. Select any column heading to sort.
+          only from those qualifying games inside the selected schedule.
+          <strong>Playoffs</strong> excludes Play-In games;
+          <strong>Postseason</strong> combines Play-In and playoff games. Select
+          any column heading to sort.
         </p>
       </section>
 

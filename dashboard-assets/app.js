@@ -42,6 +42,7 @@ const elements = {
   topGamesMeta: document.querySelector("#top-games-meta"),
   topGamesBody: document.querySelector("#top-games-body"),
   topGamesError: document.querySelector("#top-games-error"),
+  highValuePhase: document.querySelector("#high-value-phase"),
   highValueRecordsMeta: document.querySelector("#high-value-records-meta"),
   highValuePlayerCount: document.querySelector("#high-value-player-count"),
   highValueRecordsBody: document.querySelector("#high-value-records-body"),
@@ -553,6 +554,7 @@ function syncUrl() {
     game_limit: elements.topGamesLimit.value,
     high_value_sort_by: state.highValueSortBy,
     high_value_sort_direction: state.highValueSortDirection,
+    high_value_phase: elements.highValuePhase.value,
     sort_by: state.sortBy,
     sort_direction: state.sortDirection,
   });
@@ -657,6 +659,7 @@ async function loadHighValueRecords() {
   syncUrl();
 
   const params = new URLSearchParams({
+    phase: elements.highValuePhase.value,
     sort_by: state.highValueSortBy,
     sort_direction: state.highValueSortDirection,
   });
@@ -671,9 +674,15 @@ async function loadHighValueRecords() {
     }
 
     const payload = await response.json();
+    const phaseLabel = {
+      All: "All games",
+      "Regular Season": "Regular season",
+      Playoffs: "Playoffs · no Play-In",
+      Postseason: "Postseason · Play-In + playoffs",
+    }[payload.phase] ?? payload.phase;
     renderHighValueRecords(payload.rows);
     elements.highValuePlayerCount.textContent = String(payload.total_players);
-    elements.highValueRecordsMeta.textContent = `All-time · ${payload.total_players} qualifying player${payload.total_players === 1 ? "" : "s"} · Sorted by ${highValueSortLabel()}`;
+    elements.highValueRecordsMeta.textContent = `${phaseLabel} · ${payload.total_players} qualifying player${payload.total_players === 1 ? "" : "s"} · Sorted by ${highValueSortLabel()}`;
   } catch (error) {
     if (error.name === "AbortError") return;
     elements.highValueRecordsBody.innerHTML = "";
@@ -1464,6 +1473,15 @@ async function initialize() {
       : "games_played";
     state.highValueSortDirection =
       params.get("high_value_sort_direction") === "asc" ? "asc" : "desc";
+    const requestedHighValuePhase = params.get("high_value_phase");
+    elements.highValuePhase.value = [
+      "All",
+      "Regular Season",
+      "Playoffs",
+      "Postseason",
+    ].includes(requestedHighValuePhase)
+      ? requestedHighValuePhase
+      : "All";
 
     await Promise.all([
       loadRankings(),
@@ -1495,6 +1513,7 @@ elements.topGamesOutcomes.forEach((input) => {
   input.addEventListener("change", loadTopGames);
 });
 elements.topGamesLimit.addEventListener("change", loadTopGames);
+elements.highValuePhase.addEventListener("change", loadHighValueRecords);
 elements.highValueSortableHeadings.forEach((heading) => {
   const button = heading.querySelector("button[data-high-value-sort]");
   button.addEventListener("click", () => {
