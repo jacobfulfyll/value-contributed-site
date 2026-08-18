@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260818-default-wins-vc"
+      href="dashboard-assets/styles.css?v=20260818-collapsed-game-sections"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260818-default-wins-vc"
+      src="dashboard-assets/app.js?v=20260818-collapsed-game-sections"
       defer
     ></script>
   </head>
@@ -335,12 +335,31 @@
         </p>
       </section>
 
-      <section class="top-games" aria-labelledby="top-games-title">
+      <details
+        id="top-games"
+        class="top-games"
+        aria-labelledby="top-games-title"
+      >
+        <summary class="high-value-records-toggle top-games-toggle">
+          <span class="high-value-records-toggle-heading">
+            <span class="section-label">SINGLE-GAME LEADERBOARD</span>
+            <span
+              id="top-games-title"
+              class="high-value-records-title"
+              role="heading"
+              aria-level="2"
+            >
+              Highest all-time games
+            </span>
+          </span>
+          <span class="high-value-records-toggle-action">
+            <span class="high-value-records-toggle-label"></span>
+            <span class="high-value-records-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
+
+        <div class="high-value-records-content top-games-content">
         <div class="results-heading top-games-heading">
-          <div>
-            <p class="section-label">SINGLE-GAME LEADERBOARD</p>
-            <h2 id="top-games-title">Highest all-time games</h2>
-          </div>
           <p id="top-games-meta" class="results-meta" aria-live="polite">
             Loading single-game leaders…
           </p>
@@ -434,7 +453,8 @@
           the Play-In; Postseason combines Play-In and playoff games. The
           win/loss filter reranks only the selected outcome.
         </p>
-      </section>
+        </div>
+      </details>
 
       <details
         id="high-value-records"

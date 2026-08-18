@@ -356,6 +356,10 @@ h1 {
   max-width: 970px;
 }
 
+.top-games {
+  order: 99;
+}
+
 .high-value-records-summary {
   display: flex;
   align-items: flex-end;
@@ -430,7 +434,15 @@ h1 {
   content: "Collapse section";
 }
 
+.top-games[open] .high-value-records-toggle-label::before {
+  content: "Collapse section";
+}
+
 .high-value-records[open] .high-value-records-chevron {
+  transform: rotate(180deg);
+}
+
+.top-games[open] .high-value-records-chevron {
   transform: rotate(180deg);
 }
 
