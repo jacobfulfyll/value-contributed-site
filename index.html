@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260818-collapsed-game-club"
+      href="dashboard-assets/styles.css?v=20260818-default-wins-vc"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260818-collapsed-game-club"
+      src="dashboard-assets/app.js?v=20260818-default-wins-vc"
       defer
     ></script>
   </head>
@@ -111,7 +111,7 @@
             <span>Sort cards by</span>
             <select id="mobile-sort" aria-label="Sort player cards by">
               <option value="value_contributed">Value Contributed</option>
-              <option value="wins_contributed">Wins Contributed</option>
+              <option value="wins_contributed" selected>Wins Contributed</option>
               <option value="losses_contributed">Loss VC</option>
               <option value="value_per_game">VC per game</option>
               <option value="value_per_game_rank">VC/game rank</option>
@@ -226,21 +226,21 @@
                 <th
                   scope="col"
                   class="numeric sortable-heading"
-                  aria-sort="descending"
+                  aria-sort="none"
                   title="Value Contributed in all selected games"
                 >
                   <button type="button" data-sort="value_contributed">
-                    VC <span class="sort-arrow" aria-hidden="true">↓</span>
+                    VC <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
                 <th
                   scope="col"
                   class="numeric sortable-heading"
-                  aria-sort="none"
+                  aria-sort="descending"
                   title="Value Contributed in wins"
                 >
                   <button type="button" data-sort="wins_contributed">
-                    Wins VC <span class="sort-arrow" aria-hidden="true">↕</span>
+                    Wins VC <span class="sort-arrow" aria-hidden="true">↓</span>
                   </button>
                 </th>
                 <th

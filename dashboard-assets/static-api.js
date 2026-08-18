@@ -44,7 +44,7 @@
     const season = url.searchParams.get("season") || "All Seasons";
     const phase = url.searchParams.get("phase") || "All";
     const metric = url.searchParams.get("metric") || "value_contributed";
-    const requestedSort = url.searchParams.get("sort_by") || "value_contributed";
+    const requestedSort = url.searchParams.get("sort_by") || "wins_contributed";
     const sortBy = requestedSort === "selected_metric" ? metric : requestedSort;
     const sortDirection = url.searchParams.get("sort_direction") === "asc"
       ? "asc"

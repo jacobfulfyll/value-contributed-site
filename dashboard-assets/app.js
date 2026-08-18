@@ -7,7 +7,7 @@ const state = {
   searchTimer: null,
   trendSearchTimer: null,
   liftSearchTimer: null,
-  sortBy: "value_contributed",
+  sortBy: "wins_contributed",
   sortDirection: "desc",
   highValueSortBy: "games_played",
   highValueSortDirection: "desc",
@@ -1480,7 +1480,7 @@ async function initialize() {
     ];
     state.sortBy = validSorts.includes(requestedSort)
       ? requestedSort
-      : "value_contributed";
+      : "wins_contributed";
     state.sortDirection = params.get("sort_direction") === "asc" ? "asc" : "desc";
 
     const requestedHighValueSort = params.get("high_value_sort_by");
