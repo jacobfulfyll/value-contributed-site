@@ -10,11 +10,11 @@
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260814-high-value-schedule"
+      href="dashboard-assets/styles.css?v=20260818-collapsed-game-club"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260814-high-value-schedule"
+      src="dashboard-assets/app.js?v=20260818-collapsed-game-club"
       defer
     ></script>
   </head>
@@ -58,6 +58,18 @@
             <option value="PlayIn">Play-In</option>
             <option value="Playoffs">Playoffs</option>
             <option value="Postseason">Postseason (Play-In + Playoffs)</option>
+          </select>
+        </label>
+
+        <label class="control control-wide">
+          <span>Game time</span>
+          <select
+            id="garbage-time-mode"
+            name="garbage_time_mode"
+            aria-label="Garbage-time treatment"
+          >
+            <option value="competitive" selected>Exclude garbage time</option>
+            <option value="all_minutes">Include garbage time</option>
           </select>
         </label>
 
@@ -424,15 +436,31 @@
         </p>
       </section>
 
-      <section
+      <details
+        id="high-value-records"
         class="high-value-records"
         aria-labelledby="high-value-records-title"
       >
+        <summary class="high-value-records-toggle">
+          <span class="high-value-records-toggle-heading">
+            <span class="section-label">HIGH-VALUE GAME RECORDS</span>
+            <span
+              id="high-value-records-title"
+              class="high-value-records-title"
+              role="heading"
+              aria-level="2"
+            >
+              The .400+ Game Club
+            </span>
+          </span>
+          <span class="high-value-records-toggle-action">
+            <span class="high-value-records-toggle-label"></span>
+            <span class="high-value-records-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
+
+        <div class="high-value-records-content">
         <div class="results-heading high-value-records-heading">
-          <div>
-            <p class="section-label">HIGH-VALUE GAME RECORDS</p>
-            <h2 id="high-value-records-title">The .400+ Game Club</h2>
-          </div>
           <div class="high-value-records-summary">
             <div class="qualifier-count" aria-live="polite">
               <strong id="high-value-player-count">—</strong>
@@ -576,7 +604,8 @@
           <strong>Postseason</strong> combines Play-In and playoff games. Select
           any column heading to sort.
         </p>
-      </section>
+        </div>
+      </details>
 
       <section class="trends" aria-labelledby="trends-title">
         <div class="results-heading trends-heading">

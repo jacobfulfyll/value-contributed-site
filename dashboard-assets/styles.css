@@ -34,6 +34,8 @@ select {
 }
 
 .shell {
+  display: flex;
+  flex-direction: column;
   width: min(1440px, calc(100% - 40px));
   margin: 0 auto;
   padding: 56px 0 72px;
@@ -359,6 +361,83 @@ h1 {
   align-items: flex-end;
   flex-direction: column;
   gap: 8px;
+  margin-left: auto;
+}
+
+.high-value-records {
+  order: 100;
+}
+
+.high-value-records-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 60px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.high-value-records-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.high-value-records-toggle:focus-visible {
+  border-radius: 10px;
+  outline: 3px solid rgb(31 107 80 / 24%);
+  outline-offset: 6px;
+}
+
+.high-value-records-toggle-heading,
+.high-value-records-title {
+  display: block;
+}
+
+.high-value-records-toggle-heading .section-label {
+  margin-bottom: 8px;
+}
+
+.high-value-records-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.high-value-records-toggle-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  color: var(--accent-deep);
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.high-value-records-toggle-label::before {
+  content: "Expand section";
+}
+
+.high-value-records-chevron {
+  font-size: 1.4rem;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+.high-value-records[open] .high-value-records-toggle-label::before {
+  content: "Collapse section";
+}
+
+.high-value-records[open] .high-value-records-chevron {
+  transform: rotate(180deg);
+}
+
+.high-value-records-content {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
 }
 
 .high-value-records-toolbar {
@@ -1184,8 +1263,15 @@ body.chart-expanded {
     padding: 20px 14px 18px;
   }
 
+  .high-value-records-toggle {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
   .high-value-records-summary {
     align-items: flex-start;
+    margin-left: 0;
   }
 
   .results-meta {

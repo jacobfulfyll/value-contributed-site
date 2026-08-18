@@ -40,6 +40,7 @@
   }
 
   async function rankingsResponse(url, init) {
+    const garbageTimeMode = url.searchParams.get("garbage_time_mode") || "competitive";
     const season = url.searchParams.get("season") || "All Seasons";
     const phase = url.searchParams.get("phase") || "All";
     const metric = url.searchParams.get("metric") || "value_contributed";
@@ -53,7 +54,7 @@
       .toLocaleLowerCase();
     const limit = Math.max(1, Math.min(250, Number(url.searchParams.get("limit")) || 50));
     const response = await staticJson(
-      `rankings/${slug(season)}--${slug(phase)}.json`,
+      `rankings/${slug(garbageTimeMode)}--${slug(season)}--${slug(phase)}.json`,
       init,
     );
     if (!response.ok) return response;
@@ -76,12 +77,13 @@
   }
 
   async function topGamesResponse(url, init) {
+    const garbageTimeMode = url.searchParams.get("garbage_time_mode") || "competitive";
     const season = url.searchParams.get("season") || "All Seasons";
     const phase = url.searchParams.get("phase") || "All";
     const outcome = url.searchParams.get("outcome") || "Both";
     const limit = Math.max(1, Math.min(250, Number(url.searchParams.get("limit")) || 25));
     const response = await staticJson(
-      `top-games/${slug(season)}--${slug(phase)}--${slug(outcome)}.json`,
+      `top-games/${slug(garbageTimeMode)}--${slug(season)}--${slug(phase)}--${slug(outcome)}.json`,
       init,
     );
     if (!response.ok) return response;
@@ -93,6 +95,7 @@
   }
 
   async function highValueRecordsResponse(url, init) {
+    const garbageTimeMode = url.searchParams.get("garbage_time_mode") || "competitive";
     const validPhases = new Set(["All", "Regular Season", "Playoffs", "Postseason"]);
     const requestedPhase = url.searchParams.get("phase") || "All";
     const phase = validPhases.has(requestedPhase) ? requestedPhase : "All";
@@ -108,7 +111,10 @@
     const sortDirection = url.searchParams.get("sort_direction") === "asc"
       ? "asc"
       : "desc";
-    const response = await staticJson("high-value-records.json", init);
+    const response = await staticJson(
+      `high-value-records--${slug(garbageTimeMode)}.json`,
+      init,
+    );
     if (!response.ok) return response;
     const snapshot = await response.json();
     const phaseSnapshot = snapshot.phases?.[phase] ?? snapshot;
@@ -146,13 +152,15 @@
       return topGamesResponse(requestUrl, init);
     }
     if (path.endsWith("/api/rankings/rolling-trends")) {
+      const garbageTimeMode = requestUrl.searchParams.get("garbage_time_mode") || "competitive";
       const phase = requestUrl.searchParams.get("phase") || "All";
       const years = requestUrl.searchParams.get("window_years") || "3";
-      return staticJson(`rolling-trends/${slug(phase)}--${years}.json`, init);
+      return staticJson(`rolling-trends/${slug(garbageTimeMode)}--${slug(phase)}--${years}.json`, init);
     }
     if (path.endsWith("/api/rankings/postseason-lift-trends")) {
+      const garbageTimeMode = requestUrl.searchParams.get("garbage_time_mode") || "competitive";
       const years = requestUrl.searchParams.get("window_years") || "3";
-      return staticJson(`postseason-lift-trends/${years}.json`, init);
+      return staticJson(`postseason-lift-trends/${slug(garbageTimeMode)}--${years}.json`, init);
     }
     if (path.endsWith("/api/rankings")) {
       return rankingsResponse(requestUrl, init);

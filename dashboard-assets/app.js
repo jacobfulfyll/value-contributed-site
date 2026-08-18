@@ -22,6 +22,7 @@ const state = {
 const elements = {
   season: document.querySelector("#season"),
   phase: document.querySelector("#phase"),
+  garbageTimeMode: document.querySelector("#garbage-time-mode"),
   search: document.querySelector("#search"),
   limit: document.querySelector("#limit"),
   title: document.querySelector("#results-title"),
@@ -94,6 +95,12 @@ function selectedLiftGroup() {
 
 function selectedTopGamesOutcome() {
   return document.querySelector('input[name="top-games-outcome"]:checked').value;
+}
+
+function garbageTimeLabel() {
+  return elements.garbageTimeMode.value === "all_minutes"
+    ? "Garbage time included"
+    : "Garbage time excluded";
 }
 
 function number(value) {
@@ -543,6 +550,7 @@ function syncUrl() {
   const params = new URLSearchParams({
     season: elements.season.value,
     phase: elements.phase.value,
+    garbage_time_mode: elements.garbageTimeMode.value,
     limit: elements.limit.value,
     trend_phase: selectedTrendPhase(),
     trend_window: String(selectedTrendWindow()),
@@ -576,6 +584,7 @@ async function loadRankings() {
   const params = new URLSearchParams({
     season: elements.season.value,
     phase: elements.phase.value,
+    garbage_time_mode: elements.garbageTimeMode.value,
     sort_by: state.sortBy,
     sort_direction: state.sortDirection,
     limit: elements.limit.value,
@@ -594,7 +603,7 @@ async function loadRankings() {
     const payload = await response.json();
     const scopeLabel = payload.season === "All Seasons" ? "Career" : payload.season;
     elements.title.textContent = `${scopeLabel} player value`;
-    elements.meta.textContent = `${scheduleLabel(payload.phase)} · ${payload.rows.length} player${payload.rows.length === 1 ? "" : "s"} · Sorted by ${sortLabel()}`;
+    elements.meta.textContent = `${scheduleLabel(payload.phase)} · ${garbageTimeLabel()} · ${payload.rows.length} player${payload.rows.length === 1 ? "" : "s"} · Sorted by ${sortLabel()}`;
     renderRows(payload.rows);
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -615,6 +624,7 @@ async function loadTopGames() {
     season: elements.topGamesSeason.value,
     phase: elements.topGamesPhase.value,
     outcome: selectedTopGamesOutcome(),
+    garbage_time_mode: elements.garbageTimeMode.value,
     limit: elements.topGamesLimit.value,
   });
 
@@ -641,7 +651,7 @@ async function loadTopGames() {
       Losses: "losses only",
     }[payload.outcome] ?? payload.outcome;
     renderTopGames(payload.rows);
-    elements.topGamesMeta.textContent = `${seasonLabel} · ${phaseLabel} · ${outcomeLabel} · Top ${payload.rows.length}`;
+    elements.topGamesMeta.textContent = `${seasonLabel} · ${phaseLabel} · ${outcomeLabel} · ${garbageTimeLabel()} · Top ${payload.rows.length}`;
   } catch (error) {
     if (error.name === "AbortError") return;
     elements.topGamesBody.innerHTML = "";
@@ -660,6 +670,7 @@ async function loadHighValueRecords() {
 
   const params = new URLSearchParams({
     phase: elements.highValuePhase.value,
+    garbage_time_mode: elements.garbageTimeMode.value,
     sort_by: state.highValueSortBy,
     sort_direction: state.highValueSortDirection,
   });
@@ -682,7 +693,7 @@ async function loadHighValueRecords() {
     }[payload.phase] ?? payload.phase;
     renderHighValueRecords(payload.rows);
     elements.highValuePlayerCount.textContent = String(payload.total_players);
-    elements.highValueRecordsMeta.textContent = `${phaseLabel} · ${payload.total_players} qualifying player${payload.total_players === 1 ? "" : "s"} · Sorted by ${highValueSortLabel()}`;
+    elements.highValueRecordsMeta.textContent = `${phaseLabel} · ${garbageTimeLabel()} · ${payload.total_players} qualifying player${payload.total_players === 1 ? "" : "s"} · Sorted by ${highValueSortLabel()}`;
   } catch (error) {
     if (error.name === "AbortError") return;
     elements.highValueRecordsBody.innerHTML = "";
@@ -980,6 +991,7 @@ async function loadTrends() {
   const params = new URLSearchParams({
     phase: selectedTrendPhase(),
     window_years: String(selectedTrendWindow()),
+    garbage_time_mode: elements.garbageTimeMode.value,
   });
   try {
     const response = await fetch(`/api/rankings/rolling-trends?${params}`, {
@@ -1314,6 +1326,7 @@ async function loadLiftTrends() {
   setLiftLoading();
   const params = new URLSearchParams({
     window_years: String(selectedLiftWindow()),
+    garbage_time_mode: elements.garbageTimeMode.value,
   });
   try {
     const response = await fetch(`/api/rankings/postseason-lift-trends?${params}`, {
@@ -1352,6 +1365,16 @@ async function initialize() {
     elements.season.value = payload.seasons.includes(requestedSeason)
       ? requestedSeason
       : payload.default_season;
+
+    const validGarbageTimeModes = payload.garbage_time_modes.map(
+      (mode) => mode.value,
+    );
+    const requestedGarbageTimeMode = params.get("garbage_time_mode");
+    elements.garbageTimeMode.value = validGarbageTimeModes.includes(
+      requestedGarbageTimeMode,
+    )
+      ? requestedGarbageTimeMode
+      : payload.default_garbage_time_mode;
 
     elements.topGamesSeason.innerHTML = payload.seasons
       .map(
@@ -1505,6 +1528,15 @@ async function initialize() {
 elements.season.addEventListener("change", loadRankings);
 elements.phase.addEventListener("change", () => {
   loadRankings();
+});
+elements.garbageTimeMode.addEventListener("change", () => {
+  Promise.all([
+    loadRankings(),
+    loadTopGames(),
+    loadHighValueRecords(),
+    loadTrends(),
+    loadLiftTrends(),
+  ]);
 });
 elements.limit.addEventListener("change", loadRankings);
 elements.topGamesSeason.addEventListener("change", loadTopGames);
