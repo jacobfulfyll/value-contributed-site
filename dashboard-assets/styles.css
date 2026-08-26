@@ -556,6 +556,10 @@ h1 {
   display: none;
 }
 
+.mobile-row-toggle {
+  display: none;
+}
+
 .ranking-toolbar {
   display: grid;
   grid-template-columns: minmax(210px, 1fr) auto minmax(190px, auto) minmax(320px, 1.5fr);
@@ -1523,10 +1527,25 @@ body.chart-expanded {
     border-radius: 0;
   }
 
+  .rankings-table-wrap {
+    max-height: none;
+    overflow: visible;
+  }
+
   table {
     display: block;
     min-width: 0;
     border-collapse: separate;
+  }
+
+  .rankings-table {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .rankings-table tbody {
+    width: 100%;
   }
 
   .top-games-table {
@@ -1616,28 +1635,60 @@ body.chart-expanded {
   tbody tr:not(.loading-row, .empty-row) .player-cell {
     grid-column: 2 / -1;
     grid-row: 1;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     flex-direction: column;
-    min-height: 62px;
+    min-height: 92px;
     padding: 14px 12px 13px;
     border-top: 0;
     background: #fbfaf5;
   }
 
   tbody tr:not(.loading-row, .empty-row) .player-name {
-    align-self: center;
+    align-self: flex-start;
     font-size: 1rem;
   }
 
   tbody tr:not(.loading-row, .empty-row) .player-id,
   tbody tr:not(.loading-row, .empty-row) .player-team {
-    align-self: center;
+    align-self: flex-start;
+  }
+
+  .mobile-row-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 34px;
+    margin-top: 8px;
+    padding: 0 10px;
+    border: 1px solid rgb(31 107 80 / 32%);
+    border-radius: 999px;
+    color: var(--accent-deep);
+    background: #fff;
+    font: inherit;
+    font-size: 0.67rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .mobile-row-toggle:focus-visible {
+    outline: 3px solid rgb(31 107 80 / 22%);
+    outline-offset: 2px;
+  }
+
+  .mobile-row-toggle-symbol {
+    font-size: 1rem;
+    line-height: 1;
   }
 
   tbody tr:not(.loading-row, .empty-row) .summary-cell,
   tbody tr:not(.loading-row, .empty-row) .total-cell {
     grid-column: span 2;
+  }
+
+  .rankings-table tbody tr:not(.loading-row, .empty-row) .mobile-core-cell {
+    grid-column: span 3;
   }
 
   tbody tr:not(.loading-row, .empty-row) .category-cell,
@@ -1651,20 +1702,30 @@ body.chart-expanded {
     box-shadow: inset 3px 0 #d3d0c7;
   }
 
-  tbody tr:not(.loading-row, .empty-row) .category-cell:nth-child(6) {
+  tbody tr:not(.loading-row, .empty-row) .category-offense-cell {
     box-shadow: inset 3px 0 #c8a34b;
   }
 
-  tbody tr:not(.loading-row, .empty-row) .category-cell:nth-child(7) {
+  tbody tr:not(.loading-row, .empty-row) .category-defense-cell {
     box-shadow: inset 3px 0 #4c84a8;
   }
 
-  tbody tr:not(.loading-row, .empty-row) .category-cell:nth-child(8) {
+  tbody tr:not(.loading-row, .empty-row) .category-hustle-cell {
     box-shadow: inset 3px 0 #6e9d55;
   }
 
-  tbody tr:not(.loading-row, .empty-row) .category-cell:nth-child(9) {
+  tbody tr:not(.loading-row, .empty-row) .category-other-cell {
     box-shadow: inset 3px 0 #9a9285;
+  }
+
+  .rankings-table tbody tr:not(.loading-row, .empty-row)
+    .mobile-detail-cell {
+    display: none;
+  }
+
+  .rankings-table tbody tr.is-mobile-expanded:not(.loading-row, .empty-row)
+    .mobile-detail-cell {
+    display: flex;
   }
 
   tbody tr:not(.loading-row, .empty-row) .total-cell {

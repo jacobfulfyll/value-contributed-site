@@ -312,29 +312,40 @@ function renderRows(rows) {
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
             <span class="player-team">${escapeHtml(teamLabels(row))}</span>
+            <button
+              type="button"
+              class="mobile-row-toggle"
+              data-mobile-row-toggle
+              data-player-name="${escapeHtml(row.player_name)}"
+              aria-expanded="false"
+              aria-label="Show full breakdown for ${escapeHtml(row.player_name)}"
+            >
+              <span class="mobile-row-toggle-label">Show full breakdown</span>
+              <span class="mobile-row-toggle-symbol" aria-hidden="true">+</span>
+            </button>
           </td>
-          <td class="numeric total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
-          <td class="numeric total-cell" data-label="Value Contributed" title="${row.value_contributed}">${number(row.value_contributed)}</td>
-          <td class="numeric total-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
-          <td class="numeric summary-cell" data-label="Games">${row.games_played}</td>
-          <td class="numeric summary-cell" data-label="Wins">${row.wins}</td>
-          <td class="numeric summary-cell" data-label="Losses">${row.losses}</td>
-          <td class="numeric category-cell" data-label="Offense">${contribution(row.offense_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell" data-label="Defense">${contribution(row.defense_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell" data-label="Hustle">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell" data-label="Other">${contribution(row.other_value, Number(row.value_contributed))}</td>
-          <td class="numeric rate-cell" data-label="VC / game">${rate(row.value_per_game)}</td>
-          <td class="numeric rate-cell comparison-cell" data-label="VC/game rank">${valuePerGameRank(row)}</td>
-          <td class="numeric rate-cell comparison-cell" data-label="Post VC/game difference">${postseasonValuePerGameDifference(row)}</td>
-          <td class="numeric rate-cell comparison-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
-          <td class="numeric audit-cell" data-label="Raw Off">${displayNumber(row.raw_offense_value)}</td>
-          <td class="numeric audit-cell" data-label="Raw Def">${displayNumber(row.raw_defense_value)}</td>
-          <td class="numeric audit-cell" data-label="Team game Off">${adjustment(row.team_game_adjustment_offense, row.team_game_adjustment_offense_pct)}</td>
-          <td class="numeric audit-cell" data-label="Team game Def">${adjustment(row.team_game_adjustment_defense, row.team_game_adjustment_defense_pct)}</td>
-          <td class="numeric audit-cell" data-label="Opponent strength Off">${adjustment(row.opponent_strength_adjustment_offense, row.opponent_strength_adjustment_offense_pct)}</td>
-          <td class="numeric audit-cell" data-label="Opponent strength Def">${adjustment(row.opponent_strength_adjustment_defense, row.opponent_strength_adjustment_defense_pct)}</td>
-          <td class="numeric audit-cell" data-label="Opponent expectation Off">${adjustment(row.opponent_expectation_adjustment_offense, row.opponent_expectation_adjustment_offense_pct)}</td>
-          <td class="numeric audit-cell" data-label="Opponent expectation Def">${adjustment(row.opponent_expectation_adjustment_defense, row.opponent_expectation_adjustment_defense_pct)}</td>
+          <td class="numeric total-cell mobile-core-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
+          <td class="numeric total-cell mobile-core-cell" data-label="Value Contributed" title="${row.value_contributed}">${number(row.value_contributed)}</td>
+          <td class="numeric total-cell mobile-detail-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
+          <td class="numeric summary-cell mobile-core-cell" data-label="Games">${row.games_played}</td>
+          <td class="numeric summary-cell mobile-detail-cell" data-label="Wins">${row.wins}</td>
+          <td class="numeric summary-cell mobile-detail-cell" data-label="Losses">${row.losses}</td>
+          <td class="numeric category-cell category-offense-cell mobile-detail-cell" data-label="Offense">${contribution(row.offense_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell category-defense-cell mobile-detail-cell" data-label="Defense">${contribution(row.defense_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell category-hustle-cell mobile-detail-cell" data-label="Hustle">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell category-other-cell mobile-detail-cell" data-label="Other">${contribution(row.other_value, Number(row.value_contributed))}</td>
+          <td class="numeric rate-cell mobile-core-cell" data-label="VC / game">${rate(row.value_per_game)}</td>
+          <td class="numeric rate-cell comparison-cell mobile-detail-cell" data-label="VC/game rank">${valuePerGameRank(row)}</td>
+          <td class="numeric rate-cell comparison-cell mobile-detail-cell" data-label="Post VC/game difference">${postseasonValuePerGameDifference(row)}</td>
+          <td class="numeric rate-cell comparison-cell mobile-detail-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
+          <td class="numeric audit-cell mobile-detail-cell" data-label="Raw Off">${displayNumber(row.raw_offense_value)}</td>
+          <td class="numeric audit-cell mobile-detail-cell" data-label="Raw Def">${displayNumber(row.raw_defense_value)}</td>
+          <td class="numeric audit-cell mobile-detail-cell" data-label="Team game Off">${adjustment(row.team_game_adjustment_offense, row.team_game_adjustment_offense_pct)}</td>
+          <td class="numeric audit-cell mobile-detail-cell" data-label="Team game Def">${adjustment(row.team_game_adjustment_defense, row.team_game_adjustment_defense_pct)}</td>
+          <td class="numeric audit-cell mobile-detail-cell" data-label="Opponent strength Off">${adjustment(row.opponent_strength_adjustment_offense, row.opponent_strength_adjustment_offense_pct)}</td>
+          <td class="numeric audit-cell mobile-detail-cell" data-label="Opponent strength Def">${adjustment(row.opponent_strength_adjustment_defense, row.opponent_strength_adjustment_defense_pct)}</td>
+          <td class="numeric audit-cell mobile-detail-cell" data-label="Opponent expectation Off">${adjustment(row.opponent_expectation_adjustment_offense, row.opponent_expectation_adjustment_offense_pct)}</td>
+          <td class="numeric audit-cell mobile-detail-cell" data-label="Opponent expectation Def">${adjustment(row.opponent_expectation_adjustment_defense, row.opponent_expectation_adjustment_defense_pct)}</td>
         </tr>`,
     )
     .join("");
@@ -1634,6 +1645,27 @@ elements.sortableHeadings.forEach((heading) => {
     }
     loadRankings();
   });
+});
+elements.body.addEventListener("click", (event) => {
+  const toggle = event.target.closest("[data-mobile-row-toggle]");
+  if (!toggle) return;
+
+  const row = toggle.closest("tr");
+  if (!row) return;
+
+  const expanded = row.classList.toggle("is-mobile-expanded");
+  const playerName = toggle.dataset.playerName;
+  toggle.setAttribute("aria-expanded", String(expanded));
+  toggle.setAttribute(
+    "aria-label",
+    `${expanded ? "Hide" : "Show"} full breakdown for ${playerName}`,
+  );
+  toggle.querySelector(".mobile-row-toggle-label").textContent = expanded
+    ? "Hide full breakdown"
+    : "Show full breakdown";
+  toggle.querySelector(".mobile-row-toggle-symbol").textContent = expanded
+    ? "−"
+    : "+";
 });
 elements.search.addEventListener("input", () => {
   clearTimeout(state.searchTimer);
