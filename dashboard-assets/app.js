@@ -9,6 +9,7 @@ const state = {
   liftSearchTimer: null,
   sortBy: "wins_contributed",
   sortDirection: "desc",
+  minGames: 20,
   highValueSortBy: "games_played",
   highValueSortDirection: "desc",
   trendPayload: null,
@@ -18,6 +19,8 @@ const state = {
   expandedChartPanel: null,
   expandedChartTrigger: null,
 };
+
+const PUBLIC_STAT_VERSION = "v7_positive_only";
 
 const elements = {
   season: document.querySelector("#season"),
@@ -32,8 +35,6 @@ const elements = {
   sortableHeadings: Array.from(
     document.querySelectorAll(".rankings-table .sortable-heading"),
   ),
-  mobileSort: document.querySelector("#mobile-sort"),
-  mobileSortDirection: document.querySelector("#mobile-sort-direction"),
   topGamesSeason: document.querySelector("#top-games-season"),
   topGamesPhase: document.querySelector("#top-games-phase"),
   topGamesOutcomes: Array.from(
@@ -128,6 +129,12 @@ function signedNumber(value, suffix = "") {
   return `${numericValue > 0 ? "+" : ""}${number(numericValue)}${suffix}`;
 }
 
+function signedPercentage(value) {
+  if (value === null || value === undefined) return "—";
+  const numericValue = Number(value);
+  return `${numericValue > 0 ? "+" : ""}${percentage(numericValue)}`;
+}
+
 function signedRank(value) {
   if (value === null || value === undefined) return "—";
   const numericValue = Number(value);
@@ -145,7 +152,7 @@ function setLoading() {
   elements.error.hidden = true;
   elements.body.innerHTML = `
     <tr class="loading-row">
-      <td colspan="16">Reading the canonical calculation…</td>
+      <td colspan="24">Reading the calculation…</td>
     </tr>`;
   elements.meta.textContent = "Loading…";
 }
@@ -208,16 +215,6 @@ function setSortHighlight() {
         : "↓"
       : "↕";
   });
-  elements.mobileSort.value = state.sortBy;
-  elements.mobileSortDirection.innerHTML = state.sortDirection === "asc"
-    ? 'Low to high <span aria-hidden="true">↑</span>'
-    : 'High to low <span aria-hidden="true">↓</span>';
-  elements.mobileSortDirection.setAttribute(
-    "aria-label",
-    state.sortDirection === "asc"
-      ? "Sort low to high; tap to reverse"
-      : "Sort high to low; tap to reverse",
-  );
 }
 
 function setHighValueSortHighlight() {
@@ -256,7 +253,7 @@ function renderRows(rows) {
   if (!rows.length) {
     elements.body.innerHTML = `
       <tr class="empty-row">
-        <td colspan="16">No players match these filters.</td>
+        <td colspan="24">No players match these filters.</td>
       </tr>`;
     return;
   }
@@ -273,6 +270,17 @@ function renderRows(rows) {
     const signClass = Number(value) < 0 ? " negative-value" : "";
     return `<span class="rate-value${signClass}">${displayNumber(value)}</span>`;
   };
+  const adjustment = (value, percent) => {
+    const signClass = Number(value) < 0 ? " negative-value" : "";
+    const percentLabel = percent === null || percent === undefined
+      ? "—"
+      : `${signedPercentage(percent)} gross raw`;
+    return `<span class="audit-value${signClass}">${signedNumber(value)}</span><span class="audit-percent">${percentLabel}</span>`;
+  };
+  const teamLabels = (row) => {
+    if (!row.teams?.length) return "Team unavailable";
+    return row.teams.map((team) => team.abbreviation).join(" · ");
+  };
   const postseasonRankChange = (row) => {
     if (row.postseason_rank_change === null) {
       return `<span class="rate-value">—</span><span class="rate-context">No postseason comparison</span>`;
@@ -284,7 +292,7 @@ function renderRows(rows) {
     if (row.value_per_game_rank === null) {
       return `<span class="rate-value">—</span>`;
     }
-    return `<span class="rate-value">#${row.value_per_game_rank}</span><span class="rate-context">Active scope</span>`;
+    return `<span class="rate-value">#${row.value_per_game_rank}</span><span class="rate-context">20+ GP</span>`;
   };
   const postseasonValuePerGameDifference = (row) => {
     if (row.postseason_value_per_game_difference === null) {
@@ -303,8 +311,11 @@ function renderRows(rows) {
           <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
-            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
+            <span class="player-team">${escapeHtml(teamLabels(row))}</span>
           </td>
+          <td class="numeric total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
+          <td class="numeric total-cell" data-label="Value Contributed" title="${row.value_contributed}">${number(row.value_contributed)}</td>
+          <td class="numeric total-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
           <td class="numeric summary-cell" data-label="Games">${row.games_played}</td>
           <td class="numeric summary-cell" data-label="Wins">${row.wins}</td>
           <td class="numeric summary-cell" data-label="Losses">${row.losses}</td>
@@ -312,13 +323,18 @@ function renderRows(rows) {
           <td class="numeric category-cell" data-label="Defense">${contribution(row.defense_value, Number(row.value_contributed))}</td>
           <td class="numeric category-cell" data-label="Hustle">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
           <td class="numeric category-cell" data-label="Other">${contribution(row.other_value, Number(row.value_contributed))}</td>
-          <td class="numeric total-cell" data-label="Value Contributed" title="${row.value_contributed}">${number(row.value_contributed)}</td>
-          <td class="numeric total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
-          <td class="numeric total-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
           <td class="numeric rate-cell" data-label="VC / game">${rate(row.value_per_game)}</td>
           <td class="numeric rate-cell comparison-cell" data-label="VC/game rank">${valuePerGameRank(row)}</td>
           <td class="numeric rate-cell comparison-cell" data-label="Post VC/game difference">${postseasonValuePerGameDifference(row)}</td>
           <td class="numeric rate-cell comparison-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
+          <td class="numeric audit-cell" data-label="Raw Off">${displayNumber(row.raw_offense_value)}</td>
+          <td class="numeric audit-cell" data-label="Raw Def">${displayNumber(row.raw_defense_value)}</td>
+          <td class="numeric audit-cell" data-label="Team game Off">${adjustment(row.team_game_adjustment_offense, row.team_game_adjustment_offense_pct)}</td>
+          <td class="numeric audit-cell" data-label="Team game Def">${adjustment(row.team_game_adjustment_defense, row.team_game_adjustment_defense_pct)}</td>
+          <td class="numeric audit-cell" data-label="Opponent strength Off">${adjustment(row.opponent_strength_adjustment_offense, row.opponent_strength_adjustment_offense_pct)}</td>
+          <td class="numeric audit-cell" data-label="Opponent strength Def">${adjustment(row.opponent_strength_adjustment_defense, row.opponent_strength_adjustment_defense_pct)}</td>
+          <td class="numeric audit-cell" data-label="Opponent expectation Off">${adjustment(row.opponent_expectation_adjustment_offense, row.opponent_expectation_adjustment_offense_pct)}</td>
+          <td class="numeric audit-cell" data-label="Opponent expectation Def">${adjustment(row.opponent_expectation_adjustment_defense, row.opponent_expectation_adjustment_defense_pct)}</td>
         </tr>`,
     )
     .join("");
@@ -361,7 +377,6 @@ function renderTopGames(rows) {
           <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
-            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
           </td>
           <td class="game-season-cell" data-label="Season">
             <strong>${escapeHtml(row.season)}</strong>
@@ -407,7 +422,6 @@ function renderHighValueRecords(rows) {
           <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
-            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
           </td>
           <td class="numeric high-value-summary-cell" data-label="Games ≥ .400">${row.games_played}</td>
           <td class="numeric high-value-summary-cell" data-label="Wins">${row.wins}</td>
@@ -565,6 +579,7 @@ function syncUrl() {
     high_value_phase: elements.highValuePhase.value,
     sort_by: state.sortBy,
     sort_direction: state.sortDirection,
+    min_games: String(state.minGames),
   });
   if (elements.search.value.trim()) {
     params.set("search", elements.search.value.trim());
@@ -582,6 +597,7 @@ async function loadRankings() {
   syncUrl();
 
   const params = new URLSearchParams({
+    stat_version: PUBLIC_STAT_VERSION,
     season: elements.season.value,
     phase: elements.phase.value,
     garbage_time_mode: elements.garbageTimeMode.value,
@@ -589,6 +605,7 @@ async function loadRankings() {
     sort_direction: state.sortDirection,
     limit: elements.limit.value,
     search: elements.search.value.trim(),
+    min_games: String(state.minGames),
   });
 
   try {
@@ -603,7 +620,7 @@ async function loadRankings() {
     const payload = await response.json();
     const scopeLabel = payload.season === "All Seasons" ? "Career" : payload.season;
     elements.title.textContent = `${scopeLabel} player value`;
-    elements.meta.textContent = `${scheduleLabel(payload.phase)} · ${garbageTimeLabel()} · ${payload.rows.length} player${payload.rows.length === 1 ? "" : "s"} · Sorted by ${sortLabel()}`;
+    elements.meta.textContent = `${scheduleLabel(payload.phase)} · ${payload.rows.length} player${payload.rows.length === 1 ? "" : "s"} · ${sortLabel()}`;
     renderRows(payload.rows);
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -621,6 +638,7 @@ async function loadTopGames() {
   syncUrl();
 
   const params = new URLSearchParams({
+    stat_version: PUBLIC_STAT_VERSION,
     season: elements.topGamesSeason.value,
     phase: elements.topGamesPhase.value,
     outcome: selectedTopGamesOutcome(),
@@ -669,6 +687,7 @@ async function loadHighValueRecords() {
   syncUrl();
 
   const params = new URLSearchParams({
+    stat_version: PUBLIC_STAT_VERSION,
     phase: elements.highValuePhase.value,
     garbage_time_mode: elements.garbageTimeMode.value,
     sort_by: state.highValueSortBy,
@@ -981,7 +1000,7 @@ function renderTrendChart(payload) {
   elements.trendChart.appendChild(lineLayer);
   renderTrendLegend(players, payload.window_years, payload.qualification_rank);
   applyTrendHighlight();
-  elements.trendMeta.textContent = `${scheduleLabel(payload.phase)} · ${players.length} top-${payload.qualification_rank} qualifiers · ${payload.window_years}-year Wins Contributed average`;
+  elements.trendMeta.textContent = `${payload.window_years}-year Wins VC · ${scheduleLabel(payload.phase)} · ${players.length} players`;
 }
 
 async function loadTrends() {
@@ -989,6 +1008,7 @@ async function loadTrends() {
   state.trendController = new AbortController();
   setTrendLoading();
   const params = new URLSearchParams({
+    stat_version: PUBLIC_STAT_VERSION,
     phase: selectedTrendPhase(),
     window_years: String(selectedTrendWindow()),
     garbage_time_mode: elements.garbageTimeMode.value,
@@ -1060,7 +1080,7 @@ function liftWindowDetail(point) {
 }
 
 function showLiftTooltip(event, player, point) {
-  const populationDetail = `All Seasons Full-season WC #${point.career_full_season_rank}`;
+  const populationDetail = `All Seasons Wins VC #${point.career_full_season_rank}`;
   const seasonDetail = point.comparison_season
     ? `Regular #${point.regular_season_rank} (${number(point.regular_wins_contributed)} WC) → postseason #${point.postseason_rank} (${number(point.postseason_wins_contributed)} WC): ${signedRank(point.season_rank_change)}`
     : "No postseason comparison; season counts as 0";
@@ -1070,7 +1090,7 @@ function showLiftTooltip(event, player, point) {
   ].filter(Boolean).join(" · ");
   elements.liftTooltip.innerHTML = `
     <strong>${escapeHtml(player.player_name)}</strong>
-    <span>${escapeHtml(populationDetail)} · ${number(point.career_full_season_wins_contributed)} WC</span>
+    <span>${escapeHtml(populationDetail)} · ${number(point.career_full_season_wins_contributed)} Wins VC</span>
     <span>${escapeHtml(point.season)} · ${escapeHtml(seasonDetail)}</span>
     <span>${point.window_years}-season average: ${signedNumber(point.rolling_average)} · ${liftWindowDetail(point)}</span>
     ${qualifying ? `<em>${escapeHtml(qualifying)}</em>` : ""}`;
@@ -1317,7 +1337,7 @@ function renderLiftChart(payload = state.liftPayload) {
     bottom: "bottom-10 qualifiers",
     both: "top/bottom-10 qualifiers",
   }[selectedLiftGroup()];
-  elements.liftMeta.textContent = `${players.length} ${groupLabel} · ${payload.window_years}-year average · All Seasons WC top 100`;
+  elements.liftMeta.textContent = `${payload.window_years}-year rank change · ${players.length} ${groupLabel}`;
 }
 
 async function loadLiftTrends() {
@@ -1325,6 +1345,7 @@ async function loadLiftTrends() {
   state.liftController = new AbortController();
   setLiftLoading();
   const params = new URLSearchParams({
+    stat_version: PUBLIC_STAT_VERSION,
     window_years: String(selectedLiftWindow()),
     garbage_time_mode: elements.garbageTimeMode.value,
   });
@@ -1345,6 +1366,20 @@ async function loadLiftTrends() {
     elements.liftError.textContent = error.message;
     elements.liftError.hidden = false;
   }
+}
+
+async function loadDashboard() {
+  setTopGamesLoading();
+  setHighValueRecordsLoading();
+  setTrendLoading();
+  setLiftLoading();
+  await loadRankings();
+  await Promise.all([
+    loadTopGames(),
+    loadHighValueRecords(),
+    loadTrends(),
+    loadLiftTrends(),
+  ]);
 }
 
 async function initialize() {
@@ -1482,6 +1517,7 @@ async function initialize() {
       ? requestedSort
       : "wins_contributed";
     state.sortDirection = params.get("sort_direction") === "asc" ? "asc" : "desc";
+    state.minGames = 20;
 
     const requestedHighValueSort = params.get("high_value_sort_by");
     const validHighValueSorts = [
@@ -1506,13 +1542,7 @@ async function initialize() {
       ? requestedHighValuePhase
       : "All";
 
-    await Promise.all([
-      loadRankings(),
-      loadTopGames(),
-      loadHighValueRecords(),
-      loadTrends(),
-      loadLiftTrends(),
-    ]);
+    await loadDashboard();
   } catch (error) {
     elements.body.innerHTML = "";
     elements.error.textContent = `${error.message} Make sure local Postgres is running.`;
@@ -1525,18 +1555,14 @@ async function initialize() {
   }
 }
 
-elements.season.addEventListener("change", loadRankings);
+elements.season.addEventListener("change", () => {
+  loadRankings();
+});
 elements.phase.addEventListener("change", () => {
   loadRankings();
 });
 elements.garbageTimeMode.addEventListener("change", () => {
-  Promise.all([
-    loadRankings(),
-    loadTopGames(),
-    loadHighValueRecords(),
-    loadTrends(),
-    loadLiftTrends(),
-  ]);
+  loadDashboard();
 });
 elements.limit.addEventListener("change", loadRankings);
 elements.topGamesSeason.addEventListener("change", loadTopGames);
@@ -1608,16 +1634,6 @@ elements.sortableHeadings.forEach((heading) => {
     }
     loadRankings();
   });
-});
-elements.mobileSort.addEventListener("change", () => {
-  state.sortBy = elements.mobileSort.value;
-  state.sortDirection =
-    state.sortBy === "value_per_game_rank" ? "asc" : "desc";
-  loadRankings();
-});
-elements.mobileSortDirection.addEventListener("click", () => {
-  state.sortDirection = state.sortDirection === "desc" ? "asc" : "desc";
-  loadRankings();
 });
 elements.search.addEventListener("input", () => {
   clearTimeout(state.searchTimer);

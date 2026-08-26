@@ -53,13 +53,31 @@
       .trim()
       .toLocaleLowerCase();
     const limit = Math.max(1, Math.min(250, Number(url.searchParams.get("limit")) || 50));
+    const minGames = 20;
     const response = await staticJson(
       `rankings/${slug(garbageTimeMode)}--${slug(season)}--${slug(phase)}.json`,
       init,
     );
     if (!response.ok) return response;
     const snapshot = await response.json();
-    const rankedRows = [...snapshot.rows].sort((left, right) => {
+    const rateRanks = new Map(
+      [...snapshot.rows]
+        .filter((row) => row.games_played >= minGames)
+        .sort((left, right) => (
+          compareValues(left.value_per_game, right.value_per_game, "desc")
+          || Number(left.player_id) - Number(right.player_id)
+        ))
+        .map((row, index) => [String(row.player_id), index + 1]),
+    );
+    const rateSort = sortBy === "value_per_game" || sortBy === "value_per_game_rank";
+    const rankingPopulation = rateSort
+      ? snapshot.rows.filter((row) => row.games_played >= minGames)
+      : snapshot.rows;
+    const rankedRows = rankingPopulation.map((row) => ({
+      ...row,
+      value_per_game_rank: rateRanks.get(String(row.player_id)) ?? null,
+      minimum_games_for_rate_rank: minGames,
+    })).sort((left, right) => {
       const comparison = compareValues(left[sortBy], right[sortBy], sortDirection);
       return comparison || Number(left.player_id) - Number(right.player_id);
     });
@@ -72,6 +90,7 @@
       metric,
       sort_by: requestedSort,
       sort_direction: sortDirection,
+      minimum_games_for_rate_rank: minGames,
       rows,
     });
   }
