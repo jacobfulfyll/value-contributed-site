@@ -252,7 +252,8 @@ h1 {
 }
 
 .top-games,
-.high-value-records {
+.high-value-records,
+.season-wins-leaders {
   margin-top: 18px;
   padding: 26px 28px 20px;
   border: 1px solid var(--line);
@@ -358,6 +359,91 @@ h1 {
 
 .top-games {
   order: 99;
+}
+
+.season-wins-leaders {
+  order: 98;
+}
+
+.season-wins-toggle-label::before {
+  content: "Expand section";
+}
+
+.season-wins-leaders[open] .season-wins-toggle-label::before {
+  content: "Collapse section";
+}
+
+.season-wins-leaders[open] .high-value-records-chevron {
+  transform: rotate(180deg);
+}
+
+.season-wins-toolbar {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f4f2ec;
+}
+
+.season-wins-slider-control {
+  display: block;
+  max-width: 560px;
+}
+
+.season-wins-slider-control input {
+  width: 100%;
+  height: 28px;
+  accent-color: var(--accent-deep);
+}
+
+.season-wins-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.season-wins-table {
+  min-width: 960px;
+}
+
+.season-wins-table .player-col,
+.season-wins-table .player-cell {
+  min-width: 220px;
+}
+
+.season-wins-team-cell {
+  min-width: 125px;
+  font-weight: 800;
+}
+
+.season-wins-total-cell,
+.season-wins-offense-cell,
+.season-wins-defense-cell {
+  font-weight: 850;
+}
+
+.season-wins-total-cell {
+  color: var(--accent-deep);
+  background: rgb(215 255 84 / 13%);
+}
+
+.season-wins-offense-cell {
+  color: #286b57;
+}
+
+.season-wins-defense-cell {
+  color: #754f2a;
+}
+
+.season-wins-offense-cell .category-percent,
+.season-wins-defense-cell .category-percent {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 650;
 }
 
 .high-value-records-summary {
@@ -1606,6 +1692,10 @@ body.chart-expanded {
     padding: 20px 14px 18px;
   }
 
+  .season-wins-leaders {
+    padding: 20px 14px 18px;
+  }
+
   .high-value-records {
     padding: 20px 14px 18px;
   }
@@ -1693,6 +1783,10 @@ body.chart-expanded {
   }
 
   .top-games-table {
+    min-width: 0;
+  }
+
+  .season-wins-table {
     min-width: 0;
   }
 

@@ -3,6 +3,7 @@ const state = {
   trendController: null,
   liftController: null,
   topGamesController: null,
+  seasonWinsController: null,
   highValueRecordsController: null,
   contextController: null,
   searchTimer: null,
@@ -63,6 +64,11 @@ const elements = {
   topGamesMeta: document.querySelector("#top-games-meta"),
   topGamesBody: document.querySelector("#top-games-body"),
   topGamesError: document.querySelector("#top-games-error"),
+  seasonWinsPhase: document.querySelector("#season-wins-phase"),
+  seasonWinsPhaseLabel: document.querySelector("#season-wins-phase-label"),
+  seasonWinsMeta: document.querySelector("#season-wins-meta"),
+  seasonWinsBody: document.querySelector("#season-wins-body"),
+  seasonWinsError: document.querySelector("#season-wins-error"),
   highValuePhase: document.querySelector("#high-value-phase"),
   highValueRecordsMeta: document.querySelector("#high-value-records-meta"),
   highValuePlayerCount: document.querySelector("#high-value-player-count"),
@@ -695,6 +701,48 @@ function renderTopGames(rows) {
         </tr>`;
     })
     .join("");
+}
+
+function seasonWinsPhase() {
+  return ["Regular Season", "Postseason", "All"][Number(elements.seasonWinsPhase.value)] || "Regular Season";
+}
+
+function renderSeasonWinsLeaders(rows) {
+  if (!rows.length) {
+    elements.seasonWinsBody.innerHTML = '<tr class="empty-row"><td colspan="8">No season leaders are available.</td></tr>';
+    return;
+  }
+  elements.seasonWinsBody.innerHTML = rows.map((row) => `
+    <tr>
+      <td class="rank-number" data-label="Rank">${row.rank}</td>
+      <td class="player-cell"><span class="player-name">${escapeHtml(row.player_name)}</span><span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span></td>
+      <td class="season-wins-year" data-label="Year"><strong>${escapeHtml(row.season)}</strong></td>
+      <td class="season-wins-team-cell" data-label="Team(s)" title="${escapeHtml(row.teams.map((team) => team.name).join(" · "))}">${row.teams.map((team) => escapeHtml(team.abbreviation)).join(" · ")}</td>
+      <td class="numeric" data-label="Games">${row.games_played}</td>
+      <td class="numeric season-wins-total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
+      <td class="numeric season-wins-offense-cell" data-label="Offense" title="${row.offensive_wins_contributed}">${number(row.offensive_wins_contributed)}<span class="category-percent">${number((row.offensive_wins_contributed / row.wins_contributed) * 100)}%</span></td>
+      <td class="numeric season-wins-defense-cell" data-label="Defense" title="${row.defensive_wins_contributed}">${number(row.defensive_wins_contributed)}<span class="category-percent">${number((row.defensive_wins_contributed / row.wins_contributed) * 100)}%</span></td>
+    </tr>`).join("");
+}
+
+async function loadSeasonWinsLeaders() {
+  state.seasonWinsController?.abort();
+  state.seasonWinsController = new AbortController();
+  elements.seasonWinsError.hidden = true;
+  elements.seasonWinsPhaseLabel.textContent = {"Regular Season": "Regular season", Postseason: "Postseason", All: "Full season"}[seasonWinsPhase()];
+  elements.seasonWinsMeta.textContent = `V8 · ${elements.seasonWinsPhaseLabel.textContent} · Top 15 player-seasons`;
+  try {
+    const params = new URLSearchParams({ phase: seasonWinsPhase(), garbage_time_mode: elements.garbageTimeMode.value, limit: "15" });
+    const response = await fetch(`/api/rankings/season-wins-leaders?${params}`, { signal: state.seasonWinsController.signal });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "The season leaderboard could not be loaded.");
+    const payload = await response.json();
+    renderSeasonWinsLeaders(payload.rows);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    elements.seasonWinsBody.innerHTML = "";
+    elements.seasonWinsError.textContent = error.message;
+    elements.seasonWinsError.hidden = false;
+  }
 }
 
 function renderHighValueRecords(rows) {
@@ -1895,6 +1943,7 @@ async function loadSelectedStatistic() {
   await loadRankings();
   await Promise.all([
     loadTopGames(),
+    loadSeasonWinsLeaders(),
     loadHighValueRecords(),
     loadTrends(),
     loadLiftTrends(),
@@ -2164,6 +2213,7 @@ elements.topGamesOutcomes.forEach((input) => {
   input.addEventListener("change", loadTopGames);
 });
 elements.topGamesLimit.addEventListener("change", loadTopGames);
+elements.seasonWinsPhase.addEventListener("input", loadSeasonWinsLeaders);
 elements.highValuePhase.addEventListener("change", loadHighValueRecords);
 elements.highValueSortableHeadings.forEach((heading) => {
   const button = heading.querySelector("button[data-high-value-sort]");

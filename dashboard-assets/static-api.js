@@ -95,6 +95,19 @@
     });
   }
 
+  async function seasonWinsLeadersResponse(url, init) {
+    const garbageTimeMode = url.searchParams.get("garbage_time_mode") || "competitive";
+    const phase = url.searchParams.get("phase") || "Regular Season";
+    const response = await staticJson(
+      `season-wins-leaders/${slug(garbageTimeMode)}--${slug(phase)}.json`,
+      init,
+    );
+    if (!response.ok) return response;
+    const snapshot = await response.json();
+    const limit = Math.max(10, Math.min(15, Number(url.searchParams.get("limit")) || 15));
+    return jsonResponse({ ...snapshot, rows: snapshot.rows.slice(0, limit), limit });
+  }
+
   async function highValueRecordsResponse(url, init) {
     const garbageTimeMode = url.searchParams.get("garbage_time_mode") || "competitive";
     const validPhases = new Set(["All", "Regular Season", "Playoffs", "Postseason"]);
@@ -151,6 +164,9 @@
     }
     if (path.endsWith("/api/rankings/top-games")) {
       return topGamesResponse(requestUrl, init);
+    }
+    if (path.endsWith("/api/rankings/season-wins-leaders")) {
+      return seasonWinsLeadersResponse(requestUrl, init);
     }
     if (path.endsWith("/api/rankings/rolling-trends")) {
       const garbageTimeMode = requestUrl.searchParams.get("garbage_time_mode") || "competitive";

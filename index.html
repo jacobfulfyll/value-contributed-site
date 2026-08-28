@@ -500,6 +500,54 @@
       </section>
 
       <details
+        id="season-wins-leaders"
+        class="season-wins-leaders"
+        aria-labelledby="season-wins-leaders-title"
+      >
+        <summary class="high-value-records-toggle season-wins-toggle">
+          <span class="high-value-records-toggle-heading">
+            <span class="section-label">SEASON LEADERBOARD</span>
+            <span id="season-wins-leaders-title" class="high-value-records-title" role="heading" aria-level="2">
+              Top 15 Wins Contributed seasons
+            </span>
+          </span>
+          <span class="high-value-records-toggle-action">
+            <span class="season-wins-toggle-label"></span>
+            <span class="high-value-records-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
+        <div class="high-value-records-content season-wins-content">
+          <div class="results-heading">
+            <p id="season-wins-meta" class="results-meta" aria-live="polite">Loading season leaders…</p>
+          </div>
+          <div class="season-wins-toolbar">
+            <label class="control season-wins-slider-control" for="season-wins-phase">
+              <span id="season-wins-phase-label">Regular season</span>
+              <input id="season-wins-phase" type="range" min="0" max="2" step="1" value="0" aria-label="Choose leaderboard schedule" />
+              <span class="season-wins-slider-labels" aria-hidden="true"><span>Regular</span><span>Postseason</span><span>Full</span></span>
+            </label>
+          </div>
+          <div id="season-wins-error" class="error-message" role="alert" hidden></div>
+          <div class="table-wrap season-wins-table-wrap">
+            <table class="season-wins-table">
+              <thead><tr>
+                <th scope="col" class="rank-col">Rank</th>
+                <th scope="col" class="player-col">Player</th>
+                <th scope="col">Year</th>
+                <th scope="col">Team(s)</th>
+                <th scope="col" class="numeric">Games</th>
+                <th scope="col" class="numeric">Wins VC</th>
+                <th scope="col" class="numeric">Offense</th>
+                <th scope="col" class="numeric">Defense</th>
+              </tr></thead>
+              <tbody id="season-wins-body"><tr class="loading-row"><td colspan="8">Reading season leaders…</td></tr></tbody>
+            </table>
+          </div>
+          <p class="definition season-wins-definition">Each row is one player-season, ranked by Wins Contributed. Full season combines regular season and postseason; the offense and defense columns show the responsibility breakdown of that season’s Wins Contributed.</p>
+        </div>
+      </details>
+
+      <details
         id="top-games"
         class="top-games"
         aria-labelledby="top-games-title"
