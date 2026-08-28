@@ -4,12 +4,12 @@ const state = {
   liftController: null,
   topGamesController: null,
   highValueRecordsController: null,
+  contextController: null,
   searchTimer: null,
   trendSearchTimer: null,
   liftSearchTimer: null,
   sortBy: "wins_contributed",
   sortDirection: "desc",
-  minGames: 20,
   highValueSortBy: "games_played",
   highValueSortDirection: "desc",
   trendPayload: null,
@@ -18,14 +18,31 @@ const state = {
   activeLiftPlayer: null,
   expandedChartPanel: null,
   expandedChartTrigger: null,
+  selectedContextPlayerId: null,
+  selectedContextPlayerName: null,
+  contextPage: 1,
+  contextTrigger: null,
+  rankingsRunId: null,
+  v8RunId: null,
+  recordColumnsExpanded: false,
+  contextColumnsExpanded: false,
 };
 
-const PUBLIC_STAT_VERSION = "v7_positive_only";
+const contextSorts = new Set([
+  "side_context_raw_value",
+  "teammate_offense_context_value",
+  "opponent_offense_context_value",
+  "teammate_defense_context_value",
+  "opponent_defense_context_value",
+]);
 
 const elements = {
+  statVersion: document.querySelector("#stat-version"),
   season: document.querySelector("#season"),
   phase: document.querySelector("#phase"),
   garbageTimeMode: document.querySelector("#garbage-time-mode"),
+  breakdownControl: document.querySelector("#breakdown-control"),
+  breakdownMode: document.querySelector("#breakdown-mode"),
   search: document.querySelector("#search"),
   limit: document.querySelector("#limit"),
   title: document.querySelector("#results-title"),
@@ -35,6 +52,8 @@ const elements = {
   sortableHeadings: Array.from(
     document.querySelectorAll(".rankings-table .sortable-heading"),
   ),
+  mobileSort: document.querySelector("#mobile-sort"),
+  mobileSortDirection: document.querySelector("#mobile-sort-direction"),
   topGamesSeason: document.querySelector("#top-games-season"),
   topGamesPhase: document.querySelector("#top-games-phase"),
   topGamesOutcomes: Array.from(
@@ -74,6 +93,22 @@ const elements = {
   liftLegend: document.querySelector("#lift-legend-list"),
   liftLegendSummary: document.querySelector("#lift-legend-summary"),
   liftTooltip: document.querySelector("#lift-tooltip"),
+  rankingsTable: document.querySelector("#rankings-table"),
+  sideGroupHeading: document.querySelector("#side-group-heading"),
+  recordColumnsToggle: document.querySelector("#record-columns-toggle"),
+  contextColumnsToggle: document.querySelector("#context-columns-toggle"),
+  v8ContextOnly: Array.from(document.querySelectorAll(".v8-context-only")),
+  rankingsDefinition: document.querySelector("#rankings-definition"),
+  rankingsGuideSummary: document.querySelector("#rankings-guide-summary"),
+  contextDialog: document.querySelector("#player-context-dialog"),
+  contextDialogTitle: document.querySelector("#context-dialog-title"),
+  contextDialogMeta: document.querySelector("#context-dialog-meta"),
+  contextDialogError: document.querySelector("#context-dialog-error"),
+  contextDialogContent: document.querySelector("#context-dialog-content"),
+  contextDialogClose: document.querySelector("#context-dialog-close"),
+  contextPagePrevious: document.querySelector("#context-page-previous"),
+  contextPageNext: document.querySelector("#context-page-next"),
+  contextPageStatus: document.querySelector("#context-page-status"),
 };
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -104,6 +139,65 @@ function garbageTimeLabel() {
     : "Garbage time excluded";
 }
 
+function statVersionLabel() {
+  const labels = {
+    v8: "V8 four-part context + side responsibility",
+    v7_positive_only: "V7 separate context + positive-only close",
+    v6_signed_gross: "V6 possession context + signed-gross close",
+    v5_adjusted: "V5 ratings + opponent context",
+    v5_before_context: "V5 after teammate ratings",
+    v4_adjusted: "V4 lineup-adjusted",
+    v3_before_context: "V3 before lineup adjustment",
+  };
+  return labels[elements.statVersion.value] || elements.statVersion.value;
+}
+
+function isV8() {
+  return elements.statVersion.value === "v8";
+}
+
+function selectedBreakdownMode() {
+  return elements.breakdownMode.value === "wc" ? "wc" : "vc";
+}
+
+function currentContextScopeSignature() {
+  return JSON.stringify({
+    run_id: state.rankingsRunId,
+    player_id: state.selectedContextPlayerId,
+    season: elements.season.value,
+    phase: elements.phase.value,
+    garbage_time_mode: elements.garbageTimeMode.value,
+    stat_version: elements.statVersion.value,
+    breakdown_mode: selectedBreakdownMode(),
+    page: state.contextPage,
+  });
+}
+
+function responseContextScopeSignature(payload) {
+  return JSON.stringify({
+    run_id: payload.run_id,
+    player_id: String(payload.player_id),
+    season: payload.season,
+    phase: payload.phase,
+    garbage_time_mode: payload.garbage_time_mode,
+    stat_version: payload.stat_version,
+    breakdown_mode: payload.breakdown_mode,
+    page: payload.pagination.page,
+  });
+}
+
+function invalidatePlayerContextScope({ resetPage = true } = {}) {
+  state.contextController?.abort();
+  state.contextController = null;
+  if (resetPage) state.contextPage = 1;
+  if (!state.selectedContextPlayerId || !elements.contextDialog.open) return;
+  elements.contextDialogError.hidden = true;
+  elements.contextDialogContent.innerHTML = "<p>Loading exact-scope context…</p>";
+  elements.contextPageStatus.textContent = "Loading…";
+  elements.contextPagePrevious.disabled = true;
+  elements.contextPageNext.disabled = true;
+}
+
 function number(value) {
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 3,
@@ -123,16 +217,114 @@ function percentage(value) {
   }).format(Number(value));
 }
 
+function percentagePoints(value) {
+  if (value === null || value === undefined) return "—";
+  return `${new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(Number(value))}%`;
+}
+
+function signedPercentagePoints(value) {
+  if (value === null || value === undefined) return "—";
+  const numericValue = Number(value);
+  const formatted = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(numericValue);
+  return `${numericValue > 0 ? "+" : ""}${formatted}%`;
+}
+
+function displayClosedTriplet(values, target, precision) {
+  const numeric = values.map(Number);
+  const factor = 10 ** precision;
+  const roundedTicks = numeric.map((value) => Math.round(value * factor));
+  const targetTicks = Math.round(Number(target) * factor);
+  const residualTicks = targetTicks
+    - roundedTicks.reduce((total, value) => total + value, 0);
+  let closeIndex = 0;
+  numeric.forEach((value, index) => {
+    if (Math.abs(value) > Math.abs(numeric[closeIndex])) closeIndex = index;
+  });
+  roundedTicks[closeIndex] += residualTicks;
+  return roundedTicks.map((ticks) => ticks === 0 ? 0 : ticks / factor);
+}
+
+function fixedDisplay(value, precision) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  }).format(Number(value));
+}
+
+function updateV8Presentation() {
+  const active = isV8();
+  document.body.classList.toggle("v8-dashboard", active);
+  elements.rankingsTable.classList.toggle("v8-rankings", active);
+  elements.breakdownControl.hidden = !active;
+  elements.sideGroupHeading.colSpan = active ? 3 : 4;
+  elements.sideGroupHeading.textContent = active ? "Responsibility" : "Value source";
+  elements.v8ContextOnly.forEach((element) => {
+    element.hidden = !active;
+  });
+  const hustleMobileOption = elements.mobileSort.querySelector(
+    'option[value="hustle_value"]',
+  );
+  if (hustleMobileOption) {
+    hustleMobileOption.disabled = active;
+    hustleMobileOption.hidden = active;
+  }
+  if (
+    (active && state.sortBy === "hustle_value")
+    || (!active && contextSorts.has(state.sortBy))
+  ) {
+    state.sortBy = "wins_contributed";
+    state.sortDirection = "desc";
+  }
+  updateColumnGroupPresentation();
+  elements.rankingsDefinition.innerHTML = active
+    ? "<strong>V8 responsibility</strong> allocates every player’s stored Final VC across nonnegative Offense, Defense, and genuine side-neutral Other amounts. <strong>Context</strong> shows the additive Raw VC, Teammate O, Opponent O, Teammate D, and Opponent D bridge to the same selected final total. Each percentage is that amount divided by the final total. VC uses all selected games; WC uses wins only in both the amounts and denominator."
+    : "<strong>Value Contributed</strong> sums a player’s final team-value share in wins and losses. <strong>Wins Contributed</strong> sums that same value only when the player’s team won; <strong>Loss VC</strong> is the remainder from losses. VC / game is total Value Contributed divided by games played; <strong>VC/G rank</strong> ranks that rate within the active season and schedule filters. Each game’s normalization is distributed across its weighted components before they roll up into <strong>Offense, Defense, Hustle, and Other</strong>.";
+  elements.rankingsGuideSummary.textContent = active
+    ? "Responsibility and Context use the selected VC or WC total."
+    : "Wins VC is value in wins; VC/game uses all selected appearances.";
+}
+
+function updateColumnGroupPresentation() {
+  const contextExpanded = isV8() && state.contextColumnsExpanded;
+  elements.rankingsTable.classList.toggle(
+    "record-columns-expanded",
+    state.recordColumnsExpanded,
+  );
+  elements.rankingsTable.classList.toggle(
+    "context-columns-expanded",
+    contextExpanded,
+  );
+  elements.recordColumnsToggle.setAttribute(
+    "aria-expanded",
+    String(state.recordColumnsExpanded),
+  );
+  elements.recordColumnsToggle.querySelector(".column-group-toggle-state").textContent =
+    state.recordColumnsExpanded ? "Hide" : "Show";
+  elements.contextColumnsToggle.setAttribute(
+    "aria-expanded",
+    String(contextExpanded),
+  );
+  elements.contextColumnsToggle.querySelector(".column-group-toggle-state").textContent =
+    contextExpanded ? "Hide" : "Show";
+}
+
+function visibleRankingColumnCount() {
+  const baseColumns = isV8() ? 12 : 13;
+  return baseColumns
+    + (state.recordColumnsExpanded ? 3 : 0)
+    + (isV8() && state.contextColumnsExpanded ? 5 : 0);
+}
+
 function signedNumber(value, suffix = "") {
   if (value === null || value === undefined) return "—";
   const numericValue = Number(value);
   return `${numericValue > 0 ? "+" : ""}${number(numericValue)}${suffix}`;
-}
-
-function signedPercentage(value) {
-  if (value === null || value === undefined) return "—";
-  const numericValue = Number(value);
-  return `${numericValue > 0 ? "+" : ""}${percentage(numericValue)}`;
 }
 
 function signedRank(value) {
@@ -152,7 +344,7 @@ function setLoading() {
   elements.error.hidden = true;
   elements.body.innerHTML = `
     <tr class="loading-row">
-      <td colspan="24">Reading the calculation…</td>
+      <td colspan="${visibleRankingColumnCount()}">Reading the canonical calculation…</td>
     </tr>`;
   elements.meta.textContent = "Loading…";
 }
@@ -215,6 +407,16 @@ function setSortHighlight() {
         : "↓"
       : "↕";
   });
+  elements.mobileSort.value = state.sortBy;
+  elements.mobileSortDirection.innerHTML = state.sortDirection === "asc"
+    ? 'Low to high <span aria-hidden="true">↑</span>'
+    : 'High to low <span aria-hidden="true">↓</span>';
+  elements.mobileSortDirection.setAttribute(
+    "aria-label",
+    state.sortDirection === "asc"
+      ? "Sort low to high; tap to reverse"
+      : "Sort high to low; tap to reverse",
+  );
 }
 
 function setHighValueSortHighlight() {
@@ -253,7 +455,7 @@ function renderRows(rows) {
   if (!rows.length) {
     elements.body.innerHTML = `
       <tr class="empty-row">
-        <td colspan="24">No players match these filters.</td>
+        <td colspan="${visibleRankingColumnCount()}">No players match these filters.</td>
       </tr>`;
     return;
   }
@@ -270,16 +472,107 @@ function renderRows(rows) {
     const signClass = Number(value) < 0 ? " negative-value" : "";
     return `<span class="rate-value${signClass}">${displayNumber(value)}</span>`;
   };
-  const adjustment = (value, percent) => {
-    const signClass = Number(value) < 0 ? " negative-value" : "";
-    const percentLabel = percent === null || percent === undefined
-      ? "—"
-      : `${signedPercentage(percent)} gross raw`;
-    return `<span class="audit-value${signClass}">${signedNumber(value)}</span><span class="audit-percent">${percentLabel}</span>`;
+  const v8ResponsibilityCells = (row) => {
+    const winsMode = selectedBreakdownMode() === "wc";
+    const amountKeys = winsMode
+      ? [
+          "offensive_wins_contributed",
+          "defensive_wins_contributed",
+          "other_wins_contributed",
+        ]
+      : [
+          "offensive_value_contributed",
+          "defensive_value_contributed",
+          "other_value_contributed",
+        ];
+    const pctKeys = winsMode
+      ? [
+          "offensive_wins_contributed_pct",
+          "defensive_wins_contributed_pct",
+          "other_wins_contributed_pct",
+        ]
+      : [
+          "offensive_value_contributed_pct",
+          "defensive_value_contributed_pct",
+          "other_value_contributed_pct",
+        ];
+    const target = Number(winsMode ? row.wins_contributed : row.value_contributed);
+    const amounts = displayClosedTriplet(
+      amountKeys.map((key) => row[key]),
+      target,
+      3,
+    );
+    const rawPercentages = pctKeys.map((key) => row[key]);
+    const percentages = rawPercentages.every(
+      (value) => value !== null && value !== undefined,
+    )
+      ? displayClosedTriplet(rawPercentages, 100, 1)
+      : [null, null, null];
+    const sides = ["Offense", "Defense", "Other"];
+    const classes = ["offense", "defense", "other"];
+    return sides
+      .map(
+        (side, index) => `
+          <td class="numeric category-cell category-${classes[index]}-cell" data-label="${side} ${winsMode ? "WC" : "VC"}">
+            <span class="category-value">${fixedDisplay(amounts[index], 3)}</span>
+            <span class="category-percent">${percentages[index] === null ? "—" : `${fixedDisplay(percentages[index], 1)}%`}</span>
+          </td>`,
+      )
+      .join("");
   };
-  const teamLabels = (row) => {
-    if (!row.teams?.length) return "Team unavailable";
-    return row.teams.map((team) => team.abbreviation).join(" · ");
+  const v8ContextCells = (row) => {
+    const winsMode = selectedBreakdownMode() === "wc";
+    const target = Number(winsMode ? row.wins_contributed : row.value_contributed);
+    const labels = ["Raw VC", "Teammate O", "Opponent O", "Teammate D", "Opponent D"];
+    const amountKeys = [
+      "side_context_raw_value",
+      "teammate_offense_context_value",
+      "opponent_offense_context_value",
+      "teammate_defense_context_value",
+      "opponent_defense_context_value",
+    ];
+    const pctKeys = [
+      "side_context_raw_pct",
+      "teammate_offense_context_pct",
+      "opponent_offense_context_pct",
+      "teammate_defense_context_pct",
+      "opponent_defense_context_pct",
+    ];
+    const classes = [
+      "raw",
+      "teammate-offense",
+      "opponent-offense",
+      "teammate-defense",
+      "opponent-defense",
+    ];
+    const rawAmounts = amountKeys.map((key) => row[key]);
+    const amounts = rawAmounts.every(
+      (value) => value !== null && value !== undefined,
+    )
+      ? displayClosedTriplet(rawAmounts, target, 3)
+      : rawAmounts;
+    const rawPercentages = pctKeys.map((key) => row[key]);
+    const percentages = rawPercentages.every(
+      (value) => value !== null && value !== undefined,
+    )
+      ? displayClosedTriplet(rawPercentages, 100, 1)
+      : rawPercentages;
+    return labels
+      .map((label, index) => {
+        const amount = amounts[index];
+        const percentage = percentages[index];
+        const amountSignClass = Number(amount) < 0 ? " negative-value" : "";
+        const percentSignClass = Number(percentage) < 0 ? " negative-value" : "";
+        const dataLabel = index === 0
+          ? `Raw ${winsMode ? "WC" : "VC"}`
+          : `${label} ${winsMode ? "WC" : "VC"}`;
+        return `
+          <td class="numeric category-cell context-composition-cell context-column context-${classes[index]}-cell" data-label="${dataLabel}">
+            <span class="category-value${amountSignClass}">${amount === null || amount === undefined ? "—" : fixedDisplay(amount, 3)}</span>
+            <span class="category-percent${percentSignClass}">${percentage === null || percentage === undefined ? "—" : `${fixedDisplay(percentage, 1)}%`}</span>
+          </td>`;
+      })
+      .join("");
   };
   const postseasonRankChange = (row) => {
     if (row.postseason_rank_change === null) {
@@ -292,7 +585,7 @@ function renderRows(rows) {
     if (row.value_per_game_rank === null) {
       return `<span class="rate-value">—</span>`;
     }
-    return `<span class="rate-value">#${row.value_per_game_rank}</span><span class="rate-context">20+ GP</span>`;
+    return `<span class="rate-value">#${row.value_per_game_rank}</span><span class="rate-context">Active scope</span>`;
   };
   const postseasonValuePerGameDifference = (row) => {
     if (row.postseason_value_per_game_difference === null) {
@@ -305,49 +598,35 @@ function renderRows(rows) {
   };
 
   elements.body.innerHTML = rows
-    .map(
-      (row) => `
+    .map((row) => {
+      const sideCells = isV8()
+        ? v8ResponsibilityCells(row)
+        : `
+          <td class="numeric category-cell category-offense-cell" data-label="Offense">${contribution(row.offense_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell category-defense-cell" data-label="Defense">${contribution(row.defense_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell category-hustle-cell" data-label="Hustle">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
+          <td class="numeric category-cell category-other-cell" data-label="Other">${contribution(row.other_value, Number(row.value_contributed))}</td>`;
+      return `
         <tr>
           <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
-            <span class="player-team">${escapeHtml(teamLabels(row))}</span>
-            <button
-              type="button"
-              class="mobile-row-toggle"
-              data-mobile-row-toggle
-              data-player-name="${escapeHtml(row.player_name)}"
-              aria-expanded="false"
-              aria-label="Show full breakdown for ${escapeHtml(row.player_name)}"
-            >
-              <span class="mobile-row-toggle-label">Show full breakdown</span>
-              <span class="mobile-row-toggle-symbol" aria-hidden="true">+</span>
-            </button>
+            <span class="player-teams" title="${escapeHtml(row.teams.map((team) => team.name).join(" · "))}">${row.teams.map((team) => escapeHtml(team.abbreviation)).join(" · ")}</span>
           </td>
-          <td class="numeric total-cell mobile-core-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
-          <td class="numeric total-cell mobile-core-cell" data-label="Value Contributed" title="${row.value_contributed}">${number(row.value_contributed)}</td>
-          <td class="numeric total-cell mobile-detail-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
-          <td class="numeric summary-cell mobile-core-cell" data-label="Games">${row.games_played}</td>
-          <td class="numeric summary-cell mobile-detail-cell" data-label="Wins">${row.wins}</td>
-          <td class="numeric summary-cell mobile-detail-cell" data-label="Losses">${row.losses}</td>
-          <td class="numeric category-cell category-offense-cell mobile-detail-cell" data-label="Offense">${contribution(row.offense_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell category-defense-cell mobile-detail-cell" data-label="Defense">${contribution(row.defense_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell category-hustle-cell mobile-detail-cell" data-label="Hustle">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell category-other-cell mobile-detail-cell" data-label="Other">${contribution(row.other_value, Number(row.value_contributed))}</td>
-          <td class="numeric rate-cell mobile-core-cell" data-label="VC / game">${rate(row.value_per_game)}</td>
-          <td class="numeric rate-cell comparison-cell mobile-detail-cell" data-label="VC/game rank">${valuePerGameRank(row)}</td>
-          <td class="numeric rate-cell comparison-cell mobile-detail-cell" data-label="Post VC/game difference">${postseasonValuePerGameDifference(row)}</td>
-          <td class="numeric rate-cell comparison-cell mobile-detail-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
-          <td class="numeric audit-cell mobile-detail-cell" data-label="Raw Off">${displayNumber(row.raw_offense_value)}</td>
-          <td class="numeric audit-cell mobile-detail-cell" data-label="Raw Def">${displayNumber(row.raw_defense_value)}</td>
-          <td class="numeric audit-cell mobile-detail-cell" data-label="Team game Off">${adjustment(row.team_game_adjustment_offense, row.team_game_adjustment_offense_pct)}</td>
-          <td class="numeric audit-cell mobile-detail-cell" data-label="Team game Def">${adjustment(row.team_game_adjustment_defense, row.team_game_adjustment_defense_pct)}</td>
-          <td class="numeric audit-cell mobile-detail-cell" data-label="Opponent strength Off">${adjustment(row.opponent_strength_adjustment_offense, row.opponent_strength_adjustment_offense_pct)}</td>
-          <td class="numeric audit-cell mobile-detail-cell" data-label="Opponent strength Def">${adjustment(row.opponent_strength_adjustment_defense, row.opponent_strength_adjustment_defense_pct)}</td>
-          <td class="numeric audit-cell mobile-detail-cell" data-label="Opponent expectation Off">${adjustment(row.opponent_expectation_adjustment_offense, row.opponent_expectation_adjustment_offense_pct)}</td>
-          <td class="numeric audit-cell mobile-detail-cell" data-label="Opponent expectation Def">${adjustment(row.opponent_expectation_adjustment_defense, row.opponent_expectation_adjustment_defense_pct)}</td>
-        </tr>`,
-    )
+          <td class="numeric summary-cell record-column" data-label="GP">${row.games_played}</td>
+          <td class="numeric summary-cell record-column" data-label="Wins">${row.wins}</td>
+          <td class="numeric summary-cell record-column" data-label="Losses">${row.losses}</td>
+          <td class="numeric total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
+          <td class="numeric total-cell" data-label="VC" title="${row.value_contributed}">${number(row.value_contributed)}</td>
+          <td class="numeric total-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
+          <td class="numeric rate-cell" data-label="VC / game">${rate(row.value_per_game)}</td>
+          ${sideCells}
+          ${isV8() ? v8ContextCells(row) : ""}
+          <td class="numeric rate-cell comparison-cell" data-label="VC/game rank">${valuePerGameRank(row)}</td>
+          <td class="numeric rate-cell comparison-cell" data-label="Post VC/game difference">${postseasonValuePerGameDifference(row)}</td>
+          <td class="numeric rate-cell comparison-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
+        </tr>`;
+    })
     .join("");
 }
 
@@ -388,6 +667,7 @@ function renderTopGames(rows) {
           <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
+            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
           </td>
           <td class="game-season-cell" data-label="Season">
             <strong>${escapeHtml(row.season)}</strong>
@@ -433,6 +713,7 @@ function renderHighValueRecords(rows) {
           <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
+            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
           </td>
           <td class="numeric high-value-summary-cell" data-label="Games ≥ .400">${row.games_played}</td>
           <td class="numeric high-value-summary-cell" data-label="Wins">${row.wins}</td>
@@ -477,6 +758,11 @@ function sortLabel() {
     defense_value: "Defense",
     hustle_value: "Hustle",
     other_value: "Other",
+    side_context_raw_value: "Context Raw VC",
+    teammate_offense_context_value: "Context Teammate O",
+    opponent_offense_context_value: "Context Opponent O",
+    teammate_defense_context_value: "Context Teammate D",
+    opponent_defense_context_value: "Context Opponent D",
   };
   return `${labels[state.sortBy]} ${state.sortDirection === "asc" ? "low to high" : "high to low"}`;
 }
@@ -571,8 +857,218 @@ function setupMobileCharts() {
   });
 }
 
-function syncUrl() {
+function renderContextPayload(payload) {
+  const summary = payload.summary;
+  const summaryAmounts = displayClosedTriplet(
+    [
+      summary.raw_no_context_value,
+      summary.teammate_context_value,
+      summary.opponent_context_value,
+    ],
+    summary.final_value,
+    3,
+  );
+  const rawSummaryPercentages = [
+    summary.raw_no_context_pct,
+    summary.teammate_context_pct,
+    summary.opponent_context_pct,
+  ];
+  const summaryPercentages = rawSummaryPercentages.every(
+    (value) => value !== null && value !== undefined,
+  )
+    ? displayClosedTriplet(rawSummaryPercentages, 100, 1)
+    : [null, null, null];
+  const summaryLabels = ["Raw / no context", "Teammate context", "Opponent context"];
+  const summaryCards = summaryLabels
+    .map(
+      (label, index) => `
+        <div class="context-summary-card">
+          <span>${label}</span>
+          <strong>${fixedDisplay(summaryAmounts[index], 3)}</strong>
+          <small>${summaryPercentages[index] === null ? "—" : `${fixedDisplay(summaryPercentages[index], 1)}% of final`}</small>
+        </div>`,
+    )
+    .join("");
+
+  const ppp = (points, possessions) =>
+    Number(possessions) > 0 ? fixedDisplay(Number(points) / Number(possessions), 3) : "—";
+  const gameCards = payload.games.length
+    ? payload.games
+        .map((game) => {
+          const contextAmounts = displayClosedTriplet(
+            [
+              game.raw_no_context_contribution,
+              game.teammate_context_contribution,
+              game.opponent_context_contribution,
+            ],
+            game.final_value_contributed,
+            3,
+          );
+          const contextPercentages = game.raw_percent_of_final === null
+            ? [null, null, null]
+            : displayClosedTriplet(
+                [
+                  game.raw_percent_of_final,
+                  game.teammate_percent_of_final,
+                  game.opponent_percent_of_final,
+                ],
+                100,
+                1,
+              );
+          const outcome = game.win_loss ? "Win" : "Loss";
+          return `
+            <details class="context-game">
+              <summary>
+                <span><strong>${escapeHtml(displayGameDate(game.game_date))}</strong> · ${escapeHtml(game.team.abbreviation)} vs ${escapeHtml(game.opponent.abbreviation)} · ${outcome}</span>
+                <span>${fixedDisplay(game.final_value_contributed, 3)} VC</span>
+              </summary>
+              <div class="context-game-grid">
+                <section>
+                  <h4>Context composition</h4>
+                  ${summaryLabels.map((label, index) => `<p><span>${label}</span><strong>${fixedDisplay(contextAmounts[index], 3)} · ${contextPercentages[index] === null ? "—" : `${fixedDisplay(contextPercentages[index], 1)}%`}</strong></p>`).join("")}
+                </section>
+                <section>
+                  <h4>Responsibility</h4>
+                  <p><span>Offense</span><strong>${fixedDisplay(game.offensive_value_contributed, 3)}</strong></p>
+                  <p><span>Defense</span><strong>${fixedDisplay(game.defensive_value_contributed, 3)}</strong></p>
+                  <p><span>Other</span><strong>${fixedDisplay(game.other_value_contributed, 3)}</strong></p>
+                </section>
+                <section>
+                  <h4>Signed raw ledger</h4>
+                  <p><span>Offense</span><strong>${signedNumber(game.signed_raw_offense)}</strong></p>
+                  <p><span>Defense</span><strong>${signedNumber(game.signed_raw_defense)}</strong></p>
+                  <p><span>Other</span><strong>${signedNumber(game.signed_raw_other)}</strong></p>
+                </section>
+                <section>
+                  <h4>Multiplier changes</h4>
+                  <p><span>Teammate offense / defense</span><strong>${signedNumber(game.teammate_offense_multiplier_percentage, "%")} / ${signedNumber(game.teammate_defense_multiplier_percentage, "%")}</strong></p>
+                  <p><span>Opponent offense / defense</span><strong>${signedNumber(game.opponent_offense_multiplier_percentage, "%")} / ${signedNumber(game.opponent_defense_multiplier_percentage, "%")}</strong></p>
+                  <p><span>Combined offense / defense</span><strong>${signedNumber(game.combined_offense_multiplier_percentage, "%")} / ${signedNumber(game.combined_defense_multiplier_percentage, "%")}</strong></p>
+                </section>
+                <section>
+                  <h4>Player-on PPP</h4>
+                  <p><span>Offense actual / expected</span><strong>${ppp(game.actual_offense_points_on, game.offensive_possessions_on)} / ${ppp(game.expected_offense_points_on, game.offensive_possessions_on)}</strong></p>
+                  <p><span>Opponent actual / expected</span><strong>${ppp(game.actual_opponent_points_on, game.defensive_possessions_on)} / ${ppp(game.expected_opponent_points_on, game.defensive_possessions_on)}</strong></p>
+                  <p><span>Opponent defense / offense strength</span><strong>${signedNumber(game.opponent_defense_strength_mean)} / ${signedNumber(game.opponent_offense_strength_mean)}</strong></p>
+                </section>
+                <section>
+                  <h4>Responsibility evidence</h4>
+                  <p><span>Positive O / D / Other</span><strong>${fixedDisplay(game.offense_component_positive, 3)} / ${fixedDisplay(game.defense_component_positive, 3)} / ${fixedDisplay(game.other_component_positive, 3)}</strong></p>
+                  <p><span>Negative O / D / Other</span><strong>${fixedDisplay(game.offense_component_negative_magnitude, 3)} / ${fixedDisplay(game.defense_component_negative_magnitude, 3)} / ${fixedDisplay(game.other_component_negative_magnitude, 3)}</strong></p>
+                  <p><span>Basis O / D / Other</span><strong>${fixedDisplay(game.offense_responsibility_basis, 3)} / ${fixedDisplay(game.defense_responsibility_basis, 3)} / ${fixedDisplay(game.other_responsibility_basis, 3)}</strong></p>
+                </section>
+              </div>
+            </details>`;
+        })
+        .join("")
+    : '<p class="context-empty">No games match this exact scope.</p>';
+
+  elements.contextDialogContent.innerHTML = `
+    <section class="context-summary" aria-label="Selected-scope context composition">
+      ${summaryCards}
+      <div class="context-summary-total"><span>Selected final ${selectedBreakdownMode() === "wc" ? "WC" : "VC"}</span><strong>${fixedDisplay(summary.final_value, 3)}</strong></div>
+    </section>
+    <section class="context-games" aria-label="Player game context">
+      <h3>Player games</h3>
+      ${gameCards}
+    </section>`;
+  const pagination = payload.pagination;
+  elements.contextPageStatus.textContent = pagination.total_pages
+    ? `Page ${pagination.page} of ${pagination.total_pages}`
+    : "No pages";
+  elements.contextPagePrevious.disabled = pagination.page <= 1;
+  elements.contextPageNext.disabled =
+    pagination.total_pages === 0 || pagination.page >= pagination.total_pages;
+}
+
+async function loadPlayerContext() {
+  if (!isV8() || !state.selectedContextPlayerId) return;
+  state.contextController?.abort();
+  const controller = new AbortController();
+  state.contextController = controller;
+  const requestPlayerId = state.selectedContextPlayerId;
+  const requestPage = state.contextPage;
+  const requestScopeSignature = currentContextScopeSignature();
+  elements.contextDialogError.hidden = true;
+  elements.contextDialogContent.innerHTML = "<p>Loading exact-scope context…</p>";
+  elements.contextPageStatus.textContent = "Loading…";
+  elements.contextPagePrevious.disabled = true;
+  elements.contextPageNext.disabled = true;
   const params = new URLSearchParams({
+    player_id: requestPlayerId,
+    season: elements.season.value,
+    phase: elements.phase.value,
+    garbage_time_mode: elements.garbageTimeMode.value,
+    stat_version: "v8",
+    breakdown_mode: selectedBreakdownMode(),
+    page: String(requestPage),
+    per_page: "20",
+  });
+  try {
+    const response = await fetch(`/api/rankings/player-context?${params}`, {
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || "Player context could not be loaded.");
+    }
+    const payload = await response.json();
+    if (requestScopeSignature !== currentContextScopeSignature()) return;
+    if (requestScopeSignature !== responseContextScopeSignature(payload)) {
+      throw new Error("Player context response did not match the requested scope.");
+    }
+    if (payload.games[0]?.player_name) {
+      state.selectedContextPlayerName = payload.games[0].player_name;
+    }
+    elements.contextDialogTitle.textContent = `${state.selectedContextPlayerName || `NBA ID ${requestPlayerId}`} context`;
+    const scope = payload.season === "All Seasons" ? "Career" : payload.season;
+    elements.contextDialogMeta.textContent = `${scope} · ${scheduleLabel(payload.phase)} · ${garbageTimeLabel()} · ${selectedBreakdownMode() === "wc" ? "Wins Contributed" : "Value Contributed"}`;
+    renderContextPayload(payload);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    elements.contextDialogContent.innerHTML = "";
+    elements.contextDialogError.textContent = error.message;
+    elements.contextDialogError.hidden = false;
+    elements.contextPageStatus.textContent = "";
+  }
+}
+
+function openPlayerContext(playerId, playerName, trigger = null, pushUrl = true) {
+  if (!isV8()) return;
+  state.selectedContextPlayerId = String(playerId);
+  state.selectedContextPlayerName = playerName || `NBA ID ${playerId}`;
+  state.contextPage = 1;
+  state.contextTrigger = trigger;
+  trigger?.setAttribute("aria-expanded", "true");
+  if (!elements.contextDialog.open) elements.contextDialog.showModal();
+  syncUrl(pushUrl ? "push" : "replace");
+  loadPlayerContext();
+}
+
+function closePlayerContext({ updateUrl = true, restoreFocus = true } = {}) {
+  state.contextController?.abort();
+  const trigger = state.contextTrigger;
+  const selectedPlayerId = state.selectedContextPlayerId;
+  const currentTrigger = Array.from(
+    elements.body.querySelectorAll(".view-context"),
+  ).find((button) => button.dataset.playerId === selectedPlayerId);
+  trigger?.setAttribute("aria-expanded", "false");
+  currentTrigger?.setAttribute("aria-expanded", "false");
+  state.selectedContextPlayerId = null;
+  state.selectedContextPlayerName = null;
+  state.contextPage = 1;
+  state.contextTrigger = null;
+  if (elements.contextDialog.open) elements.contextDialog.close();
+  if (updateUrl) syncUrl();
+  if (restoreFocus) {
+    const focusTarget = trigger?.isConnected ? trigger : currentTrigger;
+    focusTarget?.focus();
+  }
+}
+
+function syncUrl(historyMode = "replace") {
+  const params = new URLSearchParams({
+    stat_version: elements.statVersion.value,
     season: elements.season.value,
     phase: elements.phase.value,
     garbage_time_mode: elements.garbageTimeMode.value,
@@ -590,17 +1086,24 @@ function syncUrl() {
     high_value_phase: elements.highValuePhase.value,
     sort_by: state.sortBy,
     sort_direction: state.sortDirection,
-    min_games: String(state.minGames),
   });
+  if (isV8()) params.set("breakdown_mode", selectedBreakdownMode());
+  if (state.selectedContextPlayerId) {
+    params.set("player_id", state.selectedContextPlayerId);
+    params.set("context_page", String(state.contextPage));
+    if (state.v8RunId) params.set("context_run_id", state.v8RunId);
+  }
   if (elements.search.value.trim()) {
     params.set("search", elements.search.value.trim());
   }
-  history.replaceState(null, "", `?${params.toString()}`);
+  const method = historyMode === "push" ? "pushState" : "replaceState";
+  history[method]({ playerContext: Boolean(state.selectedContextPlayerId) }, "", `?${params.toString()}`);
 }
 
 async function loadRankings() {
   if (!elements.season.value) return;
 
+  updateV8Presentation();
   state.controller?.abort();
   state.controller = new AbortController();
   setSortHighlight();
@@ -608,7 +1111,7 @@ async function loadRankings() {
   syncUrl();
 
   const params = new URLSearchParams({
-    stat_version: PUBLIC_STAT_VERSION,
+    stat_version: elements.statVersion.value,
     season: elements.season.value,
     phase: elements.phase.value,
     garbage_time_mode: elements.garbageTimeMode.value,
@@ -616,7 +1119,7 @@ async function loadRankings() {
     sort_direction: state.sortDirection,
     limit: elements.limit.value,
     search: elements.search.value.trim(),
-    min_games: String(state.minGames),
+    breakdown_mode: selectedBreakdownMode(),
   });
 
   try {
@@ -629,10 +1132,15 @@ async function loadRankings() {
     }
 
     const payload = await response.json();
+    if (isV8() && state.v8RunId && payload.run_id !== state.v8RunId) {
+      throw new Error("The V8 rankings response did not match the available immutable run.");
+    }
+    state.rankingsRunId = payload.run_id;
     const scopeLabel = payload.season === "All Seasons" ? "Career" : payload.season;
     elements.title.textContent = `${scopeLabel} player value`;
-    elements.meta.textContent = `${scheduleLabel(payload.phase)} · ${payload.rows.length} player${payload.rows.length === 1 ? "" : "s"} · ${sortLabel()}`;
+    elements.meta.textContent = `${statVersionLabel()} · ${scheduleLabel(payload.phase)} · ${garbageTimeLabel()} · ${payload.rows.length} player${payload.rows.length === 1 ? "" : "s"} · Sorted by ${sortLabel()}`;
     renderRows(payload.rows);
+    if (state.selectedContextPlayerId && isV8()) loadPlayerContext();
   } catch (error) {
     if (error.name === "AbortError") return;
     elements.body.innerHTML = "";
@@ -649,7 +1157,7 @@ async function loadTopGames() {
   syncUrl();
 
   const params = new URLSearchParams({
-    stat_version: PUBLIC_STAT_VERSION,
+    stat_version: elements.statVersion.value,
     season: elements.topGamesSeason.value,
     phase: elements.topGamesPhase.value,
     outcome: selectedTopGamesOutcome(),
@@ -680,7 +1188,7 @@ async function loadTopGames() {
       Losses: "losses only",
     }[payload.outcome] ?? payload.outcome;
     renderTopGames(payload.rows);
-    elements.topGamesMeta.textContent = `${seasonLabel} · ${phaseLabel} · ${outcomeLabel} · ${garbageTimeLabel()} · Top ${payload.rows.length}`;
+    elements.topGamesMeta.textContent = `${statVersionLabel()} · ${seasonLabel} · ${phaseLabel} · ${outcomeLabel} · ${garbageTimeLabel()} · Top ${payload.rows.length}`;
   } catch (error) {
     if (error.name === "AbortError") return;
     elements.topGamesBody.innerHTML = "";
@@ -698,7 +1206,7 @@ async function loadHighValueRecords() {
   syncUrl();
 
   const params = new URLSearchParams({
-    stat_version: PUBLIC_STAT_VERSION,
+    stat_version: elements.statVersion.value,
     phase: elements.highValuePhase.value,
     garbage_time_mode: elements.garbageTimeMode.value,
     sort_by: state.highValueSortBy,
@@ -723,7 +1231,7 @@ async function loadHighValueRecords() {
     }[payload.phase] ?? payload.phase;
     renderHighValueRecords(payload.rows);
     elements.highValuePlayerCount.textContent = String(payload.total_players);
-    elements.highValueRecordsMeta.textContent = `${phaseLabel} · ${garbageTimeLabel()} · ${payload.total_players} qualifying player${payload.total_players === 1 ? "" : "s"} · Sorted by ${highValueSortLabel()}`;
+    elements.highValueRecordsMeta.textContent = `${statVersionLabel()} · ${phaseLabel} · ${garbageTimeLabel()} · ${payload.total_players} qualifying player${payload.total_players === 1 ? "" : "s"} · Sorted by ${highValueSortLabel()}`;
   } catch (error) {
     if (error.name === "AbortError") return;
     elements.highValueRecordsBody.innerHTML = "";
@@ -1011,7 +1519,7 @@ function renderTrendChart(payload) {
   elements.trendChart.appendChild(lineLayer);
   renderTrendLegend(players, payload.window_years, payload.qualification_rank);
   applyTrendHighlight();
-  elements.trendMeta.textContent = `${payload.window_years}-year Wins VC · ${scheduleLabel(payload.phase)} · ${players.length} players`;
+  elements.trendMeta.textContent = `${statVersionLabel()} · ${scheduleLabel(payload.phase)} · ${players.length} top-${payload.qualification_rank} qualifiers · ${payload.window_years}-year Wins Contributed average`;
 }
 
 async function loadTrends() {
@@ -1019,7 +1527,7 @@ async function loadTrends() {
   state.trendController = new AbortController();
   setTrendLoading();
   const params = new URLSearchParams({
-    stat_version: PUBLIC_STAT_VERSION,
+    stat_version: elements.statVersion.value,
     phase: selectedTrendPhase(),
     window_years: String(selectedTrendWindow()),
     garbage_time_mode: elements.garbageTimeMode.value,
@@ -1091,7 +1599,7 @@ function liftWindowDetail(point) {
 }
 
 function showLiftTooltip(event, player, point) {
-  const populationDetail = `All Seasons Wins VC #${point.career_full_season_rank}`;
+  const populationDetail = `All Seasons Full-season WC #${point.career_full_season_rank}`;
   const seasonDetail = point.comparison_season
     ? `Regular #${point.regular_season_rank} (${number(point.regular_wins_contributed)} WC) → postseason #${point.postseason_rank} (${number(point.postseason_wins_contributed)} WC): ${signedRank(point.season_rank_change)}`
     : "No postseason comparison; season counts as 0";
@@ -1101,7 +1609,7 @@ function showLiftTooltip(event, player, point) {
   ].filter(Boolean).join(" · ");
   elements.liftTooltip.innerHTML = `
     <strong>${escapeHtml(player.player_name)}</strong>
-    <span>${escapeHtml(populationDetail)} · ${number(point.career_full_season_wins_contributed)} Wins VC</span>
+    <span>${escapeHtml(populationDetail)} · ${number(point.career_full_season_wins_contributed)} WC</span>
     <span>${escapeHtml(point.season)} · ${escapeHtml(seasonDetail)}</span>
     <span>${point.window_years}-season average: ${signedNumber(point.rolling_average)} · ${liftWindowDetail(point)}</span>
     ${qualifying ? `<em>${escapeHtml(qualifying)}</em>` : ""}`;
@@ -1348,7 +1856,7 @@ function renderLiftChart(payload = state.liftPayload) {
     bottom: "bottom-10 qualifiers",
     both: "top/bottom-10 qualifiers",
   }[selectedLiftGroup()];
-  elements.liftMeta.textContent = `${payload.window_years}-year rank change · ${players.length} ${groupLabel}`;
+  elements.liftMeta.textContent = `${statVersionLabel()} · ${players.length} ${groupLabel} · ${payload.window_years}-year average · All Seasons WC top 100`;
 }
 
 async function loadLiftTrends() {
@@ -1356,7 +1864,7 @@ async function loadLiftTrends() {
   state.liftController = new AbortController();
   setLiftLoading();
   const params = new URLSearchParams({
-    stat_version: PUBLIC_STAT_VERSION,
+    stat_version: elements.statVersion.value,
     window_years: String(selectedLiftWindow()),
     garbage_time_mode: elements.garbageTimeMode.value,
   });
@@ -1379,7 +1887,7 @@ async function loadLiftTrends() {
   }
 }
 
-async function loadDashboard() {
+async function loadSelectedStatistic() {
   setTopGamesLoading();
   setHighValueRecordsLoading();
   setTrendLoading();
@@ -1400,6 +1908,26 @@ async function initialize() {
     const response = await fetch("/api/rankings/options");
     if (!response.ok) throw new Error("The season list could not be loaded.");
     const payload = await response.json();
+    state.v8RunId = payload.v8_run_id;
+
+    elements.statVersion.innerHTML = payload.stat_versions
+      .map(
+        (version) =>
+          `<option value="${escapeHtml(version.value)}">${escapeHtml(
+            version.label,
+          )}</option>`,
+      )
+      .join("");
+    const requestedStatVersion = params.get("stat_version");
+    const validStatVersions = payload.stat_versions.map(
+      (version) => version.value,
+    );
+    elements.statVersion.value = validStatVersions.includes(requestedStatVersion)
+      ? requestedStatVersion
+      : payload.default_stat_version;
+    elements.breakdownMode.value = params.get("breakdown_mode") === "wc"
+      ? "wc"
+      : "vc";
 
     elements.season.innerHTML = payload.seasons
       .map(
@@ -1523,12 +2051,16 @@ async function initialize() {
       "defense_value",
       "hustle_value",
       "other_value",
+      "side_context_raw_value",
+      "teammate_offense_context_value",
+      "opponent_offense_context_value",
+      "teammate_defense_context_value",
+      "opponent_defense_context_value",
     ];
     state.sortBy = validSorts.includes(requestedSort)
       ? requestedSort
       : "wins_contributed";
     state.sortDirection = params.get("sort_direction") === "asc" ? "asc" : "desc";
-    state.minGames = 20;
 
     const requestedHighValueSort = params.get("high_value_sort_by");
     const validHighValueSorts = [
@@ -1553,7 +2085,26 @@ async function initialize() {
       ? requestedHighValuePhase
       : "All";
 
-    await loadDashboard();
+    const requestedContextPlayer = params.get("player_id");
+    const requestedContextRun = params.get("context_run_id");
+    const contextRunMatches = !requestedContextRun
+      || requestedContextRun === state.v8RunId;
+    if (
+      isV8()
+      && contextRunMatches
+      && /^\d+$/.test(requestedContextPlayer || "")
+    ) {
+      state.selectedContextPlayerId = requestedContextPlayer;
+      state.selectedContextPlayerName = `NBA ID ${requestedContextPlayer}`;
+      const requestedContextPage = Number(params.get("context_page"));
+      state.contextPage = Number.isInteger(requestedContextPage) && requestedContextPage > 0
+        ? requestedContextPage
+        : 1;
+      elements.contextDialog.showModal();
+    }
+    updateV8Presentation();
+
+    await loadSelectedStatistic();
   } catch (error) {
     elements.body.innerHTML = "";
     elements.error.textContent = `${error.message} Make sure local Postgres is running.`;
@@ -1567,15 +2118,46 @@ async function initialize() {
 }
 
 elements.season.addEventListener("change", () => {
+  invalidatePlayerContextScope();
   loadRankings();
 });
 elements.phase.addEventListener("change", () => {
+  invalidatePlayerContextScope();
+  loadRankings();
+});
+elements.statVersion.addEventListener("change", () => {
+  if (!isV8()) closePlayerContext();
+  updateV8Presentation();
+  loadSelectedStatistic();
+});
+elements.breakdownMode.addEventListener("change", () => {
+  invalidatePlayerContextScope();
   loadRankings();
 });
 elements.garbageTimeMode.addEventListener("change", () => {
-  loadDashboard();
+  invalidatePlayerContextScope();
+  loadSelectedStatistic();
 });
 elements.limit.addEventListener("change", loadRankings);
+elements.contextDialogClose.addEventListener("click", () => closePlayerContext());
+elements.contextDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closePlayerContext();
+});
+elements.contextDialog.addEventListener("click", (event) => {
+  if (event.target === elements.contextDialog) closePlayerContext();
+});
+elements.contextPagePrevious.addEventListener("click", () => {
+  if (state.contextPage <= 1) return;
+  state.contextPage -= 1;
+  syncUrl();
+  loadPlayerContext();
+});
+elements.contextPageNext.addEventListener("click", () => {
+  state.contextPage += 1;
+  syncUrl();
+  loadPlayerContext();
+});
 elements.topGamesSeason.addEventListener("change", loadTopGames);
 elements.topGamesPhase.addEventListener("change", loadTopGames);
 elements.topGamesOutcomes.forEach((input) => {
@@ -1646,26 +2228,27 @@ elements.sortableHeadings.forEach((heading) => {
     loadRankings();
   });
 });
-elements.body.addEventListener("click", (event) => {
-  const toggle = event.target.closest("[data-mobile-row-toggle]");
-  if (!toggle) return;
-
-  const row = toggle.closest("tr");
-  if (!row) return;
-
-  const expanded = row.classList.toggle("is-mobile-expanded");
-  const playerName = toggle.dataset.playerName;
-  toggle.setAttribute("aria-expanded", String(expanded));
-  toggle.setAttribute(
-    "aria-label",
-    `${expanded ? "Hide" : "Show"} full breakdown for ${playerName}`,
-  );
-  toggle.querySelector(".mobile-row-toggle-label").textContent = expanded
-    ? "Hide full breakdown"
-    : "Show full breakdown";
-  toggle.querySelector(".mobile-row-toggle-symbol").textContent = expanded
-    ? "−"
-    : "+";
+elements.recordColumnsToggle.addEventListener("click", () => {
+  state.recordColumnsExpanded = !state.recordColumnsExpanded;
+  updateColumnGroupPresentation();
+  const placeholder = elements.body.querySelector(".loading-row td, .empty-row td");
+  if (placeholder) placeholder.colSpan = visibleRankingColumnCount();
+});
+elements.contextColumnsToggle.addEventListener("click", () => {
+  state.contextColumnsExpanded = !state.contextColumnsExpanded;
+  updateColumnGroupPresentation();
+  const placeholder = elements.body.querySelector(".loading-row td, .empty-row td");
+  if (placeholder) placeholder.colSpan = visibleRankingColumnCount();
+});
+elements.mobileSort.addEventListener("change", () => {
+  state.sortBy = elements.mobileSort.value;
+  state.sortDirection =
+    state.sortBy === "value_per_game_rank" ? "asc" : "desc";
+  loadRankings();
+});
+elements.mobileSortDirection.addEventListener("click", () => {
+  state.sortDirection = state.sortDirection === "desc" ? "asc" : "desc";
+  loadRankings();
 });
 elements.search.addEventListener("input", () => {
   clearTimeout(state.searchTimer);
@@ -1684,6 +2267,66 @@ elements.liftSearch.addEventListener("input", () => {
     state.activeLiftPlayer = null;
     applyLiftHighlight();
   }, 80);
+});
+
+window.addEventListener("popstate", () => {
+  invalidatePlayerContextScope({ resetPage: false });
+  const previousStatVersion = elements.statVersion.value;
+  const previousGarbageTimeMode = elements.garbageTimeMode.value;
+  const params = new URLSearchParams(window.location.search);
+  const optionValues = (select) => Array.from(select.options, (option) => option.value);
+  const requestedStatVersion = params.get("stat_version");
+  if (optionValues(elements.statVersion).includes(requestedStatVersion)) {
+    elements.statVersion.value = requestedStatVersion;
+  }
+  const requestedSeason = params.get("season");
+  if (optionValues(elements.season).includes(requestedSeason)) {
+    elements.season.value = requestedSeason;
+  }
+  const requestedPhase = params.get("phase");
+  if (optionValues(elements.phase).includes(requestedPhase)) {
+    elements.phase.value = requestedPhase;
+  }
+  const requestedTimeMode = params.get("garbage_time_mode");
+  if (optionValues(elements.garbageTimeMode).includes(requestedTimeMode)) {
+    elements.garbageTimeMode.value = requestedTimeMode;
+  }
+  const requestedLimit = params.get("limit");
+  if (optionValues(elements.limit).includes(requestedLimit)) {
+    elements.limit.value = requestedLimit;
+  }
+  elements.search.value = params.get("search") || "";
+  const requestedSort = params.get("sort_by");
+  if (optionValues(elements.mobileSort).includes(requestedSort)) {
+    state.sortBy = requestedSort;
+  }
+  state.sortDirection = params.get("sort_direction") === "asc" ? "asc" : "desc";
+  if (isV8()) {
+    elements.breakdownMode.value = params.get("breakdown_mode") === "wc"
+      ? "wc"
+      : "vc";
+  }
+  const playerId = params.get("player_id");
+  const contextRunId = params.get("context_run_id");
+  const contextRunMatches = !contextRunId || contextRunId === state.v8RunId;
+  if (isV8() && contextRunMatches && /^\d+$/.test(playerId || "")) {
+    state.selectedContextPlayerId = playerId;
+    state.selectedContextPlayerName = `NBA ID ${playerId}`;
+    const page = Number(params.get("context_page"));
+    state.contextPage = Number.isInteger(page) && page > 0 ? page : 1;
+    if (!elements.contextDialog.open) elements.contextDialog.showModal();
+  } else {
+    closePlayerContext({ updateUrl: false });
+  }
+  updateV8Presentation();
+  const selectedStatisticScopeChanged =
+    elements.statVersion.value !== previousStatVersion
+    || elements.garbageTimeMode.value !== previousGarbageTimeMode;
+  if (selectedStatisticScopeChanged) {
+    loadSelectedStatistic();
+  } else {
+    loadRankings();
+  }
 });
 
 setupMobileCharts();

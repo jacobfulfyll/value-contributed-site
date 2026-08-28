@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="A local, read-only browser for Value Contributed NBA player rankings."
+      content="V8 Value Contributed NBA player rankings and context breakdowns."
     />
     <title>Value Contributed Rankings</title>
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260826-mobile-table"
+      href="dashboard-assets/styles.css?v=20260827-rankings-guide-v3"
     />
     <script src="dashboard-assets/static-api.js"></script>
     <script
-      src="dashboard-assets/app.js?v=20260826-mobile-table"
+      src="dashboard-assets/app.js?v=20260827-rankings-guide-v3"
       defer
     ></script>
   </head>
@@ -27,23 +27,48 @@
 
       <header class="hero">
         <div>
-          <p class="eyebrow">NBA PLAYER VALUE · HISTORICAL CALCULATION</p>
-          <h1>Value Contributed</h1>
+          <p class="eyebrow">NBA PLAYER VALUE · V8</p>
+          <h1>Value Contributed · V8</h1>
           <p class="lede">
-            Explore how players contributed to what happened on the court,
-            with wins shown first and the calculation stages available for review.
+            Explore V8 player value, four-part context, and offensive and defensive
+            responsibility across competitive and all-minute views.
           </p>
         </div>
         <div class="status-card" aria-label="Calculation status">
           <span class="status-dot" aria-hidden="true"></span>
           <div>
-            <strong>Calculation complete</strong>
-            <span>Calculated · not independently certified</span>
+            <strong>V8 calculated locally</strong>
+            <span>V8 public data · certification pending</span>
           </div>
         </div>
       </header>
 
       <section class="controls" aria-label="Ranking filters">
+        <label class="control control-wide" hidden>
+          <span>Statistic</span>
+          <select
+            id="stat-version"
+            name="stat_version"
+            aria-label="Statistic version"
+          >
+            <option value="v8">V8 · four-part context + side responsibility</option>
+            <option value="v7_positive_only">V7 · separate context + positive-only close</option>
+            <option value="v6_signed_gross" selected>V6 · possession context + signed-gross close</option>
+            <option value="v5_adjusted">V5 · ratings + opponent context</option>
+            <option value="v5_before_context">V5 · after teammate ratings</option>
+            <option value="v4_adjusted">V4 · lineup-adjusted</option>
+            <option value="v3_before_context">V3 · before adjustment</option>
+          </select>
+        </label>
+
+        <label id="breakdown-control" class="control control-wide" hidden>
+          <span>Responsibility view</span>
+          <select id="breakdown-mode" name="breakdown_mode">
+            <option value="vc">Value Contributed</option>
+            <option value="wc">Wins Contributed</option>
+          </select>
+        </label>
+
         <label class="control">
           <span>Season</span>
           <select id="season" name="season" aria-label="Season"></select>
@@ -105,41 +130,156 @@
 
         <div id="error" class="error-message" role="alert" hidden></div>
 
-        <div class="table-wrap rankings-table-wrap" id="rankings-table-wrap" tabindex="0" aria-label="Scrollable player rankings table">
-          <table class="rankings-table">
+        <div class="mobile-sort-controls" aria-label="Sort player cards">
+          <label class="control">
+            <span>Sort cards by</span>
+            <select id="mobile-sort" aria-label="Sort player cards by">
+              <option value="value_contributed">Value Contributed</option>
+              <option value="wins_contributed" selected>Wins Contributed</option>
+              <option value="losses_contributed">Loss VC</option>
+              <option value="value_per_game">VC per game</option>
+              <option value="value_per_game_rank">VC/game rank</option>
+              <option value="postseason_value_per_game_difference">
+                Postseason VC/game difference
+              </option>
+              <option value="postseason_rank_change">Post rank change</option>
+              <option value="games_played">Games played</option>
+              <option value="wins">Wins</option>
+              <option value="losses">Losses</option>
+              <option value="offense_value">Offense</option>
+              <option value="defense_value">Defense</option>
+              <option value="hustle_value">Hustle</option>
+              <option value="other_value">Other</option>
+              <option
+                value="side_context_raw_value"
+                class="v8-context-only"
+                hidden
+              >
+                Context · Raw VC
+              </option>
+              <option
+                value="teammate_offense_context_value"
+                class="v8-context-only"
+                hidden
+              >
+                Context · Teammate O
+              </option>
+              <option
+                value="opponent_offense_context_value"
+                class="v8-context-only"
+                hidden
+              >
+                Context · Opponent O
+              </option>
+              <option
+                value="teammate_defense_context_value"
+                class="v8-context-only"
+                hidden
+              >
+                Context · Teammate D
+              </option>
+              <option
+                value="opponent_defense_context_value"
+                class="v8-context-only"
+                hidden
+              >
+                Context · Opponent D
+              </option>
+            </select>
+          </label>
+          <button id="mobile-sort-direction" type="button">
+            High to low <span aria-hidden="true">↓</span>
+          </button>
+        </div>
+
+        <div class="table-column-controls" aria-label="Optional ranking columns">
+          <button
+            id="record-columns-toggle"
+            class="column-group-toggle"
+            type="button"
+            aria-expanded="false"
+          >
+            <span>Record</span>
+            <span class="column-group-toggle-state">Show</span>
+          </button>
+          <button
+            id="context-columns-toggle"
+            class="column-group-toggle v8-context-only"
+            type="button"
+            aria-expanded="false"
+            hidden
+          >
+            <span>Context</span>
+            <span class="column-group-toggle-state">Show</span>
+          </button>
+        </div>
+
+        <div class="table-wrap rankings-table-wrap" role="region" aria-label="Player rankings table" tabindex="0">
+          <table id="rankings-table" class="rankings-table">
             <thead>
               <tr>
                 <th scope="col" rowspan="2" class="rank-col">Rank</th>
                 <th scope="col" rowspan="2" class="player-col">Player</th>
-                <th id="outcome-group" scope="colgroup" colspan="3" class="breakdown-heading">
-                  Outcome totals
-                </th>
-                <th id="record-group" scope="colgroup" colspan="3" class="breakdown-heading">
+                <th
+                  id="record-group-heading"
+                  scope="colgroup"
+                  colspan="3"
+                  class="breakdown-heading record-column"
+                >
                   Record
                 </th>
-                <th id="value-source-group" scope="colgroup" colspan="4" class="breakdown-heading">
+                <th scope="colgroup" colspan="4" class="breakdown-heading">
+                  Value
+                </th>
+                <th
+                  id="side-group-heading"
+                  scope="colgroup"
+                  colspan="5"
+                  class="breakdown-heading"
+                >
                   Value source
                 </th>
-                <th id="rates-group" scope="colgroup" colspan="2" class="breakdown-heading">
-                  Rates
+                <th
+                  id="context-group-heading"
+                  scope="colgroup"
+                  colspan="5"
+                  class="breakdown-heading v8-context-only context-column"
+                  hidden
+                >
+                  Context
                 </th>
-                <th scope="colgroup" colspan="2" class="breakdown-heading">
-                  Postseason comparison
-                </th>
-                <th id="audit-group" scope="colgroup" colspan="2" class="breakdown-heading audit-heading">
-                  Raw value
-                </th>
-                <th scope="colgroup" colspan="2" class="breakdown-heading audit-heading">
-                  Team game adjustment
-                </th>
-                <th scope="colgroup" colspan="2" class="breakdown-heading audit-heading">
-                  Opponent strength adjustment
-                </th>
-                <th scope="colgroup" colspan="2" class="breakdown-heading audit-heading">
-                  Opponent expectation adjustment
+                <th scope="colgroup" colspan="3" class="breakdown-heading">
+                  Comparison
                 </th>
               </tr>
               <tr class="category-headings">
+                <th
+                  scope="col"
+                  class="numeric sortable-heading compact-heading record-column"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="games_played">
+                    GP <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading compact-heading record-column"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="wins">
+                    Wins <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading compact-heading record-column"
+                  aria-sort="none"
+                >
+                  <button type="button" data-sort="losses">
+                    Losses <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
                 <th
                   scope="col"
                   class="numeric sortable-heading"
@@ -170,19 +310,14 @@
                     Loss VC <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
-                <th scope="col" class="numeric sortable-heading compact-heading" aria-sort="none">
-                  <button type="button" data-sort="games_played">
-                    GP <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th scope="col" class="numeric sortable-heading compact-heading" aria-sort="none">
-                  <button type="button" data-sort="wins">
-                    Wins <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th scope="col" class="numeric sortable-heading compact-heading" aria-sort="none">
-                  <button type="button" data-sort="losses">
-                    Losses <span class="sort-arrow" aria-hidden="true">↕</span>
+                <th
+                  scope="col"
+                  class="numeric sortable-heading"
+                  aria-sort="none"
+                  title="Average Value Contributed per game"
+                >
+                  <button type="button" data-sort="value_per_game">
+                    VC / game <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
                 <th
@@ -227,12 +362,57 @@
                 </th>
                 <th
                   scope="col"
-                  class="numeric sortable-heading"
+                  class="numeric context-heading sortable-heading v8-context-only context-column"
                   aria-sort="none"
-                  title="Average Value Contributed per game"
+                  title="Value before teammate and opponent context; percentage of selected final VC"
+                  hidden
                 >
-                  <button type="button" data-sort="value_per_game">
-                    VC / game <span class="sort-arrow" aria-hidden="true">↕</span>
+                  <button type="button" data-sort="side_context_raw_value">
+                    Raw VC <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric context-heading sortable-heading v8-context-only context-column"
+                  aria-sort="none"
+                  title="Additive teammate-offense context contribution; percentage of selected final VC"
+                  hidden
+                >
+                  <button type="button" data-sort="teammate_offense_context_value">
+                    Teammate O <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric context-heading sortable-heading v8-context-only context-column"
+                  aria-sort="none"
+                  title="Additive opponent-offense context contribution; percentage of selected final VC"
+                  hidden
+                >
+                  <button type="button" data-sort="opponent_offense_context_value">
+                    Opponent O <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric context-heading sortable-heading v8-context-only context-column"
+                  aria-sort="none"
+                  title="Additive teammate-defense context contribution; percentage of selected final VC"
+                  hidden
+                >
+                  <button type="button" data-sort="teammate_defense_context_value">
+                    Teammate D <span class="sort-arrow" aria-hidden="true">↕</span>
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  class="numeric context-heading sortable-heading v8-context-only context-column"
+                  aria-sort="none"
+                  title="Additive opponent-defense context contribution; percentage of selected final VC"
+                  hidden
+                >
+                  <button type="button" data-sort="opponent_defense_context_value">
+                    Opponent D <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
                 <th
@@ -269,44 +449,51 @@
                     Post rank Δ <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
-                <th scope="col" class="numeric audit-column" title="Raw offense before contextual adjustments">Raw Off</th>
-                <th scope="col" class="numeric audit-column" title="Raw defense, including defended-shot value, before contextual adjustments">Raw Def</th>
-                <th scope="col" class="numeric audit-column" title="Stage-to-stage change from the actual target-game on/off multiplier; percentage is of gross raw offense">Team game Off</th>
-                <th scope="col" class="numeric audit-column" title="Stage-to-stage change from the actual target-game on/off multiplier; percentage is of gross raw defense">Team game Def</th>
-                <th scope="col" class="numeric audit-column" title="Stage-to-stage change from opponent defensive-lineup strength; percentage is of gross raw offense">Opp strength Off</th>
-                <th scope="col" class="numeric audit-column" title="Stage-to-stage change from opponent offensive-lineup strength; percentage is of gross raw defense">Opp strength Def</th>
-                <th scope="col" class="numeric audit-column" title="Stage-to-stage team responsibility reallocation using opponent expectation; percentage is of gross raw offense">Opp exp Off</th>
-                <th scope="col" class="numeric audit-column" title="Stage-to-stage team responsibility reallocation using opponent expectation; percentage is of gross raw defense">Opp exp Def</th>
               </tr>
             </thead>
             <tbody id="rankings-body">
               <tr class="loading-row">
-                <td colspan="24">Reading the calculation…</td>
+                <td colspan="16">Reading the canonical calculation…</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <details class="table-guide">
+        <details id="rankings-guide" class="rankings-guide" open>
           <summary>
             <strong>How to read the table</strong>
-            <span>Wins VC is value in wins; VC/game sorts require 20 games.</span>
+            <span id="rankings-guide-summary">
+              Wins VC is value in wins; VC/game uses all selected appearances.
+            </span>
           </summary>
-          <div>
-            <p>
-              VC is the player’s final team-value share across selected games;
-              Wins VC includes wins only and Loss VC includes losses. Offense,
-              Defense, Hustle, and Other add back to total VC.
+          <div class="rankings-guide-body">
+            <p id="rankings-definition" class="definition">
+              <strong>Value Contributed</strong> sums a player’s final
+              team-value share in wins and losses.
+              <strong>Wins Contributed</strong> sums that same value only when
+              the player’s team won; <strong>Loss VC</strong> is the remainder
+              from losses. VC / game is total Value Contributed divided by
+              games played; <strong>VC/G rank</strong> ranks that rate within
+              the active season and schedule filters. Each game’s normalization
+              is distributed across its weighted components before they roll up
+              into <strong>Offense, Defense, Hustle, and Other</strong>, so
+              those four segments add back to Value Contributed. A game with no
+              attributable component routes its normalization-only value to
+              Other.
             </p>
-            <p>
-              Post VC/G Δ compares postseason and regular-season VC per game;
-              Post rank Δ compares Wins VC rank. Positive means improvement.
-              Postseason combines Play-In and playoff games.
-            </p>
-            <p>
-              The eight audit columns show raw offense/defense and each
-              calculation-stage change. Percentages use gross raw value; the
-              stages compound and are not independent estimates.
+            <p class="definition comparison-definition">
+              <strong>Post VC/G Δ</strong> is combined-postseason VC per game minus
+              regular-season VC per game. Positive means the player
+              produced more value per appearance in the postseason. The
+              comparison requires at least one game in each schedule and follows
+              the selected season; All Seasons compares career rates.
+              Postseason includes Play-In and playoff games.
+              <strong>Post rank Δ</strong> is regular-season Wins Contributed
+              rank minus combined-postseason Wins Contributed rank. Positive
+              means the player moved up in the postseason; negative means they
+              fell. Both ranks use the same population: players who appeared in
+              that season’s postseason, so a deep run can legitimately produce
+              a large change.
             </p>
           </div>
         </details>
@@ -679,6 +866,11 @@
               autocomplete="off"
             />
           </label>
+          <p>
+            This graph always uses Wins Contributed. History begins in 2013-14;
+            one-year views qualify at top 10, Postseason multi-year views at
+            top 15, and other multi-year views at top 25.
+          </p>
         </div>
 
         <div id="trends-error" class="error-message" role="alert" hidden></div>
@@ -706,7 +898,7 @@
               id="trend-chart"
               viewBox="0 0 1120 580"
               role="img"
-              aria-labelledby="trends-title"
+              aria-labelledby="trends-title trends-description"
             >
               <text class="chart-loading" x="560" y="290" text-anchor="middle">
                 Reading rolling averages…
@@ -724,6 +916,23 @@
           </aside>
         </div>
 
+        <p id="trends-description" class="definition trend-definition">
+          Choose a one-, three-, or five-season average. The one-year graph
+          includes players who rank in the top 10 in at least one season.
+          Three- and five-year Full season and Regular season graphs use a
+          top-25 cutoff; their Postseason graphs use top 15. Three-year
+          qualification begins in 2016-17 and five-year qualification begins
+          in 2018-19. Once qualified, every available point from 2013-14 onward
+          remains on the selected Full
+          season, Regular season, or combined Postseason chart. Hollow points
+          at the leading edge are partial averages over the seasons then
+          available; any season missed inside an established window counts as
+          zero. Leading partial points never receive a rank. Full calendar
+          windows containing a zero are ranked normally and can qualify a
+          player. Highlighted rings mark windows inside the active rank cutoff.
+          Trailing zero seasons remain visible while they still affect the
+          selected average.
+        </p>
       </section>
 
       <section class="trends lift-trends" aria-labelledby="lift-title">
@@ -802,8 +1011,9 @@
             />
           </label>
           <p>
-            Positive means a player rose in the postseason; negative means
-            they fell.
+            Positive means a player rose in the postseason; negative means they
+            fell. The population is fixed to the All Seasons, Full season Wins
+            Contributed top 100; Tyrese Haliburton is the #100 boundary.
           </p>
         </div>
 
@@ -832,7 +1042,7 @@
               id="lift-chart"
               viewBox="0 0 1120 580"
               role="img"
-              aria-labelledby="lift-title"
+              aria-labelledby="lift-title lift-description"
             >
               <text class="chart-loading" x="560" y="290" text-anchor="middle">
                 Reading postseason rank changes…
@@ -850,7 +1060,42 @@
           </aside>
         </div>
 
+        <p id="lift-description" class="definition trend-definition">
+          The graph population is the top 100 in All Seasons, Full season Wins
+          Contributed; Tyrese Haliburton is #100 and everyone below him is
+          excluded. Each season compares regular-season and postseason Wins
+          Contributed ranks among members of that fixed population who appeared
+          in the combined Play-In/playoff schedule. Rank change is
+          regular-season rank minus postseason rank. The three- and five-year
+          views average consecutive calendar seasons; a population member
+          without a postseason comparison contributes zero once their window
+          has begun. Only full windows with at least one comparison qualify
+          players for the top or bottom 10, while leading partial averages
+          remain visible.
+        </p>
       </section>
+
+      <dialog id="player-context-dialog" class="context-dialog" aria-labelledby="context-dialog-title" aria-modal="true">
+        <div class="context-dialog-shell">
+          <header class="context-dialog-header">
+            <div>
+              <p class="section-label">V8 CONTEXT COMPOSITION</p>
+              <h2 id="context-dialog-title">Player context</h2>
+              <p id="context-dialog-meta" class="results-meta"></p>
+            </div>
+            <button id="context-dialog-close" class="context-close" type="button" aria-label="Close player context">Close</button>
+          </header>
+          <div id="context-dialog-error" class="error-message" role="alert" hidden></div>
+          <div id="context-dialog-content" aria-live="polite">
+            <p>Loading exact-scope context…</p>
+          </div>
+          <footer class="context-pagination">
+            <button id="context-page-previous" type="button">Previous</button>
+            <span id="context-page-status" role="status" aria-live="polite"></span>
+            <button id="context-page-next" type="button">Next</button>
+          </footer>
+        </div>
+      </dialog>
     </main>
   </body>
 </html>

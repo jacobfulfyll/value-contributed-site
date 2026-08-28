@@ -2,8 +2,9 @@ const elements = {
   policyName: document.querySelector("#policy-name"),
   error: document.querySelector("#methodology-error"),
   actionGroups: document.querySelector("#action-groups"),
-  madeTemplates: document.querySelector("#shot-share-body"),
+  shotShares: document.querySelector("#shot-share-body"),
   defendedShotRates: document.querySelector("#dfg-rate-body"),
+  blockRates: document.querySelector("#block-rate-body"),
   factorPolicy: document.querySelector("#factor-policy"),
   weightSearch: document.querySelector("#weight-search"),
   weightReference: document.querySelector("#weight-reference-body"),
@@ -73,25 +74,24 @@ function renderRateRows(target, rows, valueKey) {
   });
 }
 
-function renderMadeTemplates(rows) {
-  elements.madeTemplates.replaceChildren();
+function renderShotShares(rows) {
+  elements.shotShares.replaceChildren();
   rows.forEach((row) => {
     const tableRow = document.createElement("tr");
     tableRow.append(node("td", "", row.label));
-    tableRow.append(node("td", "numeric rate-value-cell", percent(row.scorer)));
-    tableRow.append(node("td", "numeric rate-value-cell", percent(row.passer)));
-    tableRow.append(node("td", "numeric rate-value-cell", percent(row.oreb)));
-    tableRow.append(node("td", "numeric rate-value-cell", percent(row.remainder)));
-    elements.madeTemplates.append(tableRow);
+    tableRow.append(node("td", "numeric rate-value-cell", percent(row.shooter)));
+    tableRow.append(node("td", "numeric rate-value-cell", percent(row.assister)));
+    elements.shotShares.append(tableRow);
   });
 }
 
 function renderFactorPolicy(policy) {
   const facts = [
-    ["Missed two accountability", percent(policy.missed_two)],
-    ["Missed three accountability", percent(policy.missed_three)],
-    ["Regular FT shortfall", percent(policy.regular_free_throw_shortfall)],
-    ["Turnover accountability", percent(policy.turnover_accountability)],
+    ["Factor confidence reaches halfway", `${decimal(policy.trust_seconds)} player-seconds`],
+    ["Global factor damping", decimal(policy.damping)],
+    ["Minimum ordinary factor", decimal(policy.minimum)],
+    ["Maximum ordinary factor", decimal(policy.maximum)],
+    ["Garbage-time action weight", decimal(policy.garbage_time_weight)],
   ];
 
   elements.factorPolicy.replaceChildren();
@@ -132,12 +132,13 @@ async function loadMethodology() {
     }
     const payload = await response.json();
 
-    elements.policyName.textContent = "Value Contributed methodology";
+    elements.policyName.textContent = `V8 · ${payload.policy_name} inherited action templates`;
     renderActionGroups(payload.action_groups);
-    renderMadeTemplates(payload.made_outcome_templates);
+    renderShotShares(payload.shot_shares);
     renderRateRows(elements.defendedShotRates, payload.defended_shot_rates, "rate");
-    renderFactorPolicy(payload.v7_negative_coefficients);
-    referenceRows = payload.component_reference;
+    renderRateRows(elements.blockRates, payload.block_rates, "rate");
+    renderFactorPolicy(payload.factor_policy);
+    referenceRows = payload.raw_component_weights;
     renderReference();
   } catch (error) {
     elements.actionGroups.replaceChildren();
