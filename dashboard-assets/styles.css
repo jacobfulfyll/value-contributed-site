@@ -385,38 +385,89 @@ h1 {
   background: #f4f2ec;
 }
 
-.season-wins-slider-control {
-  display: block;
-  max-width: 560px;
+.season-wins-phase-control {
+  width: min(100%, 560px);
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.season-wins-slider-control input {
-  width: 100%;
-  height: 28px;
-  accent-color: var(--accent-deep);
-}
-
-.season-wins-slider-labels {
-  display: flex;
-  justify-content: space-between;
+.season-wins-phase-control legend {
+  margin: 0 0 7px 2px;
   color: var(--muted);
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: 750;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
+.season-wins-segmented {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 44px;
+  padding: 4px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #e9e6dd;
+}
+
+.season-wins-segmented::before {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: 8px;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgb(19 37 31 / 12%);
+  content: "";
+  transition: transform 180ms ease;
+}
+
+.season-wins-segmented:has(#season-wins-postseason:checked)::before {
+  transform: translateX(100%);
+}
+
+.season-wins-segmented:has(#season-wins-full:checked)::before {
+  transform: translateX(200%);
+}
+
+.season-wins-segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.season-wins-segmented label {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.season-wins-segmented input:checked + label {
+  color: var(--ink);
+}
+
+.season-wins-segmented input:focus-visible + label {
+  outline: 2px solid var(--accent-deep);
+  outline-offset: -2px;
+}
+
 .season-wins-table {
-  min-width: 960px;
+  min-width: 780px;
 }
 
 .season-wins-table .player-col,
 .season-wins-table .player-cell {
   min-width: 220px;
-}
-
-.season-wins-team-cell {
-  min-width: 125px;
-  font-weight: 800;
 }
 
 .season-wins-total-cell,
@@ -1788,6 +1839,45 @@ body.chart-expanded {
 
   .season-wins-table {
     min-width: 0;
+  }
+
+  .season-wins-toolbar {
+    padding: 10px;
+  }
+
+  .season-wins-phase-control {
+    width: 100%;
+  }
+
+  .season-wins-table tbody tr:not(.loading-row, .empty-row) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .season-wins-table tbody tr:not(.loading-row, .empty-row) .rank-number {
+    grid-column: 1;
+  }
+
+  .season-wins-table tbody tr:not(.loading-row, .empty-row) .player-cell {
+    grid-column: 2 / -1;
+    min-height: 72px;
+    padding: 13px 12px 12px;
+  }
+
+  .season-wins-table tbody tr:not(.loading-row, .empty-row) td:not(.rank-number, .player-cell) {
+    grid-column: span 2;
+    min-height: 72px;
+    padding: 12px 13px;
+  }
+
+  .season-wins-table tbody tr:not(.loading-row, .empty-row) .season-wins-total-cell {
+    background: rgb(215 255 84 / 12%);
+  }
+
+  .season-wins-table .player-teams {
+    margin-top: 5px;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    text-align: center;
   }
 
   .high-value-records-table {
