@@ -51,6 +51,46 @@
   min-width: 0;
 }
 
+.official-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.official-profile-card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent-deep);
+  border-radius: 13px;
+  background: #fbfaf5;
+}
+
+.official-profile-card h3 {
+  min-height: 2.5em;
+  margin-bottom: 5px;
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
+.profile-receipt {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.67rem;
+}
+
+.profile-facts {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 12px;
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.profile-facts dt { color: var(--muted); }
+.profile-facts dd { margin: 0; font-weight: 800; }
+
 .method-section {
   scroll-margin-top: 24px;
   margin-bottom: 18px;
@@ -538,6 +578,7 @@
   .calculation-steps,
   .action-card-grid,
   .defense-rate-grid,
+  .official-profile-grid,
   .limits-grid {
     grid-template-columns: 1fr;
   }

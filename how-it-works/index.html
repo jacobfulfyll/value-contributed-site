@@ -3,547 +3,129 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="A plain-language guide to how Value Contributed turns NBA player
-      actions into game value."
-    />
-    <title>How Value Contributed Is Calculated</title>
-    <link
-      rel="stylesheet"
-      href="../dashboard-assets/styles.css?v=20260827-v8-review"
-    />
-    <link
-      rel="stylesheet"
-      href="../dashboard-assets/methodology.css?v=20260823-v6-signed-gross"
-    />
-    <script src="../dashboard-assets/static-api.js"></script>
-    <script
-      src="../dashboard-assets/methodology.js?v=20260823-v6-signed-gross"
-      defer
-    ></script>
+    <meta name="description" content="How the Original Value Contributed rankings turn NBA actions, lineup context, and responsibility into exact team-game shares." />
+    <title>How Original Value Contributed Is Calculated</title>
+    <link rel="stylesheet" href="../dashboard-assets/styles.css?v=20260902-editor-clarity-v3" />
+    <link rel="stylesheet" href="../dashboard-assets/methodology.css?v=20260830-original" />
+    <script src="../dashboard-assets/methodology.js?v=20260830-original" defer></script>
+      <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://value-contributed-original-packages.jacob-press3.workers.dev; img-src 'self' data:; font-src 'self'; worker-src 'self'; form-action 'self'" />
+      <meta name="original-package-manifest" content="../data/original-package-manifest.json" />
+      <meta name="original-package-manifest-sha256" content="9fc160dcb213dc7ea1eedd349c87aea8c88034b43b5c41dea5adbc2b6a1616fe" />
+      <meta name="original-projection-manifest-url" content="../data/original-public-projection-manifest.json" />
+      <meta name="original-projection-manifest-sha256" content="2cfdcdcb59320f2b99a82a8f4342ee361264a203eb490833dfdba41e89eb24a5" />
+      <meta name="original-methodology-url" content="../data/methodology.json" />
+      <meta name="original-methodology-sha256" content="5e063c2b3e98c454bc4f84b6f22fbadc2bec90fd6a90a6b0e44a4bd247bd3d49" />
+      <script src="../dashboard-assets/static-api.js"></script>
   </head>
   <body>
     <main class="shell methodology-shell">
       <nav class="site-nav" aria-label="Primary navigation">
         <a href="../">Rankings</a>
+        <a href="../experiments/">Experiments</a>
         <a href="./" aria-current="page">How it’s calculated</a>
       </nav>
 
       <header class="hero methodology-hero">
         <div>
-          <p class="eyebrow">THE FORMULA · PLAIN LANGUAGE</p>
-          <h1>How Value Contributed works</h1>
-          <p class="lede">
-            The stat reads each game possession by possession, gives players
-            credit or blame for recorded actions, adjusts that raw value for
-            exact possession context, preserves whether each result is positive
-            or negative, and closes every team-game to one signed-gross share.
-          </p>
+          <p class="eyebrow">THE ORIGINAL FORMULA · PLAIN LANGUAGE</p>
+          <h1>From recorded actions to one exact team share</h1>
+          <p class="lede">Original Value Contributed reprices possession-level actions, adds six exact lineup-context contributions, closes every team and time mode to one, then explains the result as Offense, Defense, and Other.</p>
         </div>
         <div class="status-card" aria-label="Methodology status">
           <span class="status-dot" aria-hidden="true"></span>
-          <div>
-            <strong id="policy-name">Loading current policy…</strong>
-            <span>V8 public data · certification pending</span>
-          </div>
+          <div><strong id="policy-name">Loading the official release…</strong><span>Immutable full-history calculation</span></div>
         </div>
       </header>
 
       <div id="methodology-error" class="error-message" role="alert" hidden></div>
-
       <div class="methodology-layout">
         <aside class="methodology-nav" aria-label="On this page">
           <p class="section-label">ON THIS PAGE</p>
-          <a href="#big-picture">The big picture</a>
-          <a href="#v8-context">V8 context and responsibility</a>
-          <a href="#v6-context">V6 context and team close</a>
-          <a href="#v5-context">Earlier V5 comparison</a>
-          <a href="#action-values">Player action values</a>
-          <a href="#made-shots">Made-shot credit</a>
-          <a href="#shot-defense">Shot defense</a>
-          <a href="#final-score">From actions to VC</a>
-          <a href="#full-reference">Complete weight reference</a>
-          <a href="#limits">What is not captured</a>
+          <a href="#big-picture">The calculation</a>
+          <a href="#official-rankings">Three official rankings</a>
+          <a href="#context">Six context factors</a>
+          <a href="#experiments">Browser experiments</a>
+          <a href="#action-values">Action-value guide</a>
+          <a href="#shot-defense">Shot and defense rates</a>
+          <a href="#full-reference">Weight reference</a>
+          <a href="#limits">Interpretation and limits</a>
         </aside>
 
         <article class="methodology-content">
           <section id="big-picture" class="method-section method-intro">
-            <p class="section-label">THE BIG PICTURE</p>
-            <h2>One game becomes a set of player shares</h2>
-            <p class="method-lede">
-              Value Contributed does not say that a block is literally worth
-              0.8 wins. A number such as <strong>0.80</strong> is an action
-              weight applied before the game is normalized. The final result
-              answers: <em>what share of this team’s game value belongs to each
-              player?</em>
-            </p>
-
+            <p class="section-label">THE CALCULATION</p>
+            <h2>Five governed stages, two exact explanations</h2>
+            <p class="method-lede">A coefficient such as <strong>0.80</strong> is an action weight, not 0.80 wins. The weights create signed evidence inside one game; the final number is the player’s share of that team-game result.</p>
             <ol class="calculation-steps">
-              <li>
-                <span>1</span>
-                <div>
-                  <strong>Read the possession</strong>
-                  <p>
-                    Identify the shot, pass, rebound, turnover, defensive play,
-                    foul, and any linked contributors recorded in the data.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <span>2</span>
-                <div>
-                  <strong>Price each action</strong>
-                  <p>
-                    Combine points or possession value with the action weights
-                    shown below. Credits are positive; mistakes are negative.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <span>3</span>
-                <div>
-                  <strong>Apply exact possession context</strong>
-                  <p>
-                    Adjust each nonzero action using leave-target-out teammate
-                    performance, opponent strength, rest, and exact exposure.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <span>4</span>
-                <div>
-                  <strong>Build both time modes</strong>
-                  <p>
-                    Recompute <code>all_minutes</code> and
-                    <code>competitive</code> from their own retained possessions.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <span>5</span>
-                <div>
-                  <strong>Keep the signed player totals</strong>
-                  <p>
-                    Positive contributions remain positive, penalties remain
-                    negative, and zero-value or DNP players remain zero.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <span>6</span>
-                <div>
-                  <strong>Close the team with signed gross</strong>
-                  <p>
-                    Divide by total absolute player value and assign the exact
-                    closing residual only across positive players.
-                  </p>
-                </div>
-              </li>
+              <li><span>1</span><div><strong>Reprice frozen facts</strong><p>Apply the selected play-level coefficients to immutable semantic events.</p></div></li>
+              <li><span>2</span><div><strong>Classify components</strong><p>Place every signed component in Offense, Defense, or Other.</p></div></li>
+              <li><span>3</span><div><strong>Measure six contexts</strong><p>Calculate General, Teammate, and Opponent factors for both sides and split their joint effect with Shapley values.</p></div></li>
+              <li><span>4</span><div><strong>Adjust and close</strong><p>Apply context without flipping signs, floor negative final shares, and close each team exactly to one.</p></div></li>
+              <li><span>5</span><div><strong>Allocate responsibility</strong><p>Scale component evidence with its side, then run the exact responsibility allocator.</p></div></li>
             </ol>
-
-            <div class="definition-callout">
-              This public dashboard contains only the completed
-              <strong>V8 responsibility result</strong>. Value Contributed
-              sums V8 across every selected game; Wins Contributed sums it
-              only in games the player’s team won.
+            <div class="formula-stack">
+              <div><span>Context identity</span><code>Raw VC + six context components = Final VC</code></div>
+              <div><span>Responsibility identity</span><code>Offense + Defense + Other = Final VC</code></div>
+              <div><span>Team close</span><code>Σ player Final VC = 1 for each team, game, and time mode</code></div>
             </div>
+            <div class="definition-callout"><strong>Value Contributed</strong> sums selected game shares. <strong>Wins Contributed</strong> uses the same shares only in games the player’s team won.</div>
           </section>
 
-          <section id="v8-context" class="method-section">
-            <p class="section-label">V8 FOUR-FACTOR CONTEXT + RESPONSIBILITY</p>
-            <h2>V8 separates how value changes from who owns each side</h2>
-            <p>
-              V8 begins with the frozen V7 action ledger, then applies four
-              exact player-game context factors: teammate offense, teammate
-              defense, opponent offense, and opponent defense. The teammate
-              factors compare player-on and player-off team performance at the
-              exact possession lineups. The opponent factors use
-              target-game-excluded lineup models, so the game being explained
-              cannot train its own opponent-strength adjustment.
-            </p>
-            <div class="formula-stack">
-              <div>
-                <span>Context composition</span>
-                <code>Raw VC + teammate O + opponent O + teammate D + opponent D = Final VC</code>
-              </div>
-              <div>
-                <span>Official side responsibility</span>
-                <code>Offensive VC + Defensive VC + Other VC ≈ Final VC</code>
-              </div>
-            </div>
-            <p>
-              Those are two different views of the same final amount. The
-              dashboard evaluates all 16 combinations of the four persisted
-              context factors and uses an order-independent Shapley split to
-              express each factor's effect in additive Final VC units. Context
-              composition therefore explains how the player’s value moved after
-              the official team close. Responsibility
-              allocates that already-final value to nonnegative offensive,
-              defensive, and genuinely side-neutral Other amounts using stored
-              positive and negative evidence. It never changes Final VC, rank,
-              or any context factor. Hustle is not a V8 final side: screen,
-              rebound, and boxout activity is routed to offense or defense.
-              Both displayed decompositions close to Final VC within audited
-              binary64 tolerance; machine-precision residuals are not treated as
-              substantive context effects.
-            </p>
-            <p>
-              The rankings page sums the immutable per-game allocations. Its
-              Value Contributed view includes all selected games; its Wins
-              Contributed view applies the same stored amounts only to wins.
-              Each of the five context percentages is its summed additive amount
-              divided by the same selected Final VC or WC total. A zero total
-              displays as not applicable.
-            </p>
+          <section id="official-rankings" class="method-section">
+            <p class="section-label">OFFICIAL RANKINGS</p>
+            <h2>One public Original baseline</h2>
+            <p>The public ranking covers all 16,795 games in both time modes with every raw coefficient and each measured context effect at its 1× baseline. Stronger defensive-context magnifiers belong in private browser experiments, where small off-court samples can be evaluated with explicit reliability settings.</p>
+            <div id="official-profiles" class="official-profile-grid" aria-live="polite"></div>
           </section>
 
-          <section id="v6-context" class="method-section">
-            <p class="section-label">V6 POSSESSION CONTEXT + SIGNED-GROSS CLOSE</p>
-            <h2>Actions keep their sign, then every team still closes to one</h2>
-            <p>
-              V6 prices causal possession outcomes first and applies teammate
-              and opponent context to each nonzero action. Context may change
-              magnitude, but its sign floor prevents credit from becoming a
-              penalty or a penalty from becoming credit. No seconds multiplier
-              is applied afterward because action volume and exact possession
-              exposure already represent playing time.
-            </p>
+          <section id="context" class="method-section">
+            <p class="section-label">SIX-FACTOR CONTEXT</p>
+            <h2>Context explains how the lineup changed raw value</h2>
+            <p>The expanded view shows General O, Teammate O, Opponent O, General D, Teammate D, and Opponent D. The display names the side affected: Opponent O is derived from opponent defense, while Opponent D is derived from opponent offense. The collapsed view is the exact sum of those same columns—never a second calculation.</p>
             <div class="formula-stack">
-              <div>
-                <span>Player-game total</span>
-                <code>sum(final context-adjusted action values)</code>
-              </div>
-              <div>
-                <span>Signed-gross denominator</span>
-                <code>G = sum(abs(player-game total))</code>
-              </div>
-              <div>
-                <span>Base share</span>
-                <code>player-game total / G</code>
-              </div>
-              <div>
-                <span>Positive residual close</span>
-                <code>the amount needed to reach 1.0, split across positive players in proportion to positive total</code>
-              </div>
+              <div><span>Offense Context</span><code>General O + Teammate O + Opponent O</code></div>
+              <div><span>Defense Context</span><code>General D + Teammate D + Opponent D</code></div>
             </div>
-            <p class="method-note">
-              Negative players retain their negative gross share; positive
-              players receive the closing residual; zero players stay zero.
-              Each team’s player shares sum to exactly <code>1.0</code>. The
-              competitive mode excludes only the final sustained Q4/OT garbage
-              window: if a comeback crosses back below the threshold, the prior
-              minutes become competitive again.
-            </p>
+            <div id="context-policy" class="factor-grid"></div>
+            <p><code>lambda</code> controls the importance of on/off performance. <code>K</code> shrinks small off-court samples. A magnifier of 1 preserves a factor, 0 removes it, and values above 1 amplify it.</p>
           </section>
 
-          <section id="v5-context" class="method-section">
-            <p class="section-label">EARLIER V5 COMPARISON</p>
-            <h2>How impressive was the result against who actually played?</h2>
-            <p>
-              Player ORtg and DRtg come from the full-game rating input. A
-              nonpositive rating falls back, in order, to its positive factor
-              reconstruction, the player’s season rating, and the team’s game
-              rating. Each opponent’s expected strength reflects the players
-              and minutes in that game.
-            </p>
-            <div class="formula-stack">
-              <div>
-                <span>Offensive performance</span>
-                <code>(actual team ORtg − opponent lineup DRtg) / opponent lineup DRtg</code>
-              </div>
-              <div>
-                <span>Defensive performance</span>
-                <code>(opponent lineup ORtg − opponent actual ORtg) / opponent lineup ORtg</code>
-              </div>
-              <div>
-                <span>Rating exposure</span>
-                <code>player possessions / team possessions = 5 × selected player seconds / selected team-player seconds</code>
-              </div>
-              <div>
-                <span>Offensive rating quality</span>
-                <code>player ORtg / teammate ORtg</code>
-              </div>
-              <div>
-                <span>Defensive rating quality</span>
-                <code>teammate DRtg / player DRtg (lower player DRtg is better)</code>
-              </div>
-              <div>
-                <span>Teammate-rating multiplier</span>
-                <code>rating quality ^ (rating exposure × rating impact)</code>
-              </div>
-              <div>
-                <span>After teammate ratings</span>
-                <code>positive complete side value × rating multiplier, normalized to the same team side budget</code>
-              </div>
-              <div>
-                <span>Opponent side factors</span>
-                <code>offense: exp(2 × offense performance); defense: exp(2 × defense performance)</code>
-              </div>
-              <div>
-                <span>Fixed-budget side targets</span>
-                <code>post-rating side value × opponent factor, normalized back to the same offense + defense budget</code>
-              </div>
-              <div>
-                <span>Player opponent adjustment</span>
-                <code>fixed side transfer × (player post-rating side value × exposure) / team sum</code>
-              </div>
-              <div>
-                <span>Final V5 share</span>
-                <code>opponent-adjusted offense + defense + other, closed nonnegative to the unchanged team total</code>
-              </div>
-            </div>
-            <p class="method-note">
-              The current V5 run uses teammate rating impact <code>1</code>
-              and no multiplier bound. Rating impact is the teammate-quality
-              lever:
-              <code>0</code> makes ratings neutral, values below <code>1</code>
-              damp them, and values above <code>1</code> enhance them.
-              Competitive exposure uses non-garbage-time seconds; all-minutes
-              exposure uses the full game. Because exposure is a share of team
-              possessions, team pace cancels out.
-              Raw actions still receive <code>sec_fact^0.5</code> first, so
-              recorded production and playing time remain the value seed.
-              Both the rating and opponent stages preserve exactly one team
-              total and floor negative player totals before proportional
-              closure. Opponent context has its own impact lever, currently
-              <code>2</code>. It exponentially determines the complete fixed
-              offense-versus-defense transfer; exposure then gives more of
-              that credit or debit to players with more post-rating side value
-              and more time on the floor. It changes which side drove the game
-              without creating additional team value.
-              Defended made and missed threes both use a 0.35 responsibility
-              rate. Screen assists, secondary assists, offensive box outs, and
-              jump creation feed the offensive side magnitude; defensive box
-              outs feed defense.
-            </p>
+          <section id="experiments" class="method-section">
+            <p class="section-label">BROWSER-LOCAL EXPERIMENTS</p>
+            <h2>Change the formula without sending results anywhere</h2>
+            <p>On desktop, the Experiment Lab presents ten clearer play-credit sliders—positive scoring, playmaking, offensive rebounding, missed shots, turnovers, offensive shortfalls, defensive rebounding, helpers/hustle, defense, and fouls/administration—plus all 68 Advanced coefficients, six context magnifiers, and offense/defense K and lambda. Each play-credit slider runs from 0× to 2× with Original centered at 1×. The ten controls are translated deterministically into the frozen six-group configuration plus exact coefficient overrides. When one category is amplified, policy remainder decreases first; if necessary, the other unedited roles in that complete play are reduced proportionally to keep the allocation at one possession. Explicit Advanced edits are protected and never changed automatically. If protected values alone cannot fit, the run remains blocked with an error.</p>
+            <div class="definition-callout">Season packages are verified before calculation. Configurations, checkpoints, and results stay in IndexedDB on this device. There are no experiment-result network writes. Ranking cards are rendered as PNG images in the browser; nothing is uploaded unless you explicitly share the finished image through your device.</div>
           </section>
 
           <section id="action-values" class="method-section">
-            <p class="section-label">PLAYER ACTION VALUES</p>
-            <div class="section-heading-row">
-              <div>
-                <h2>The individual weights</h2>
-                <p>
-                  “Possession value” means the game-specific value of an
-                  offensive trip for the relevant team. Transfer actions move
-                  existing credit between players instead of creating another
-                  team possession of value.
-                </p>
-                <p>
-                  The cards below expose the inherited <code>volume_v3</code>
-                  base templates. V6 applies them inside its causal possession
-                  rules: miss accountability is forgiven after a later score
-                  except for a below-expected regular free-throw completion;
-                  retained fouls and aggregate helpers use their dedicated V6
-                  allocation templates.
-                </p>
-              </div>
-              <div class="legend-pills" aria-label="Action value legend">
-                <span class="credit-pill">Credit</span>
-                <span class="penalty-pill">Penalty</span>
-                <span class="transfer-pill">Transfer</span>
-              </div>
-            </div>
-            <div id="action-groups" class="action-groups" aria-live="polite">
-              <p class="method-loading">Reading the current policy values…</p>
-            </div>
-          </section>
-
-          <section id="made-shots" class="method-section">
-            <p class="section-label">MADE-SHOT CREDIT</p>
-            <h2>The type of basket changes who gets credit</h2>
-            <p>
-              The current policy starts with the shot’s full face value—two or
-              three points—then applies these shares to the recorded shooter and
-              assister. A self-created jumper therefore gives substantially more
-              credit to the shooter than an alley-oop does.
-            </p>
-            <div class="method-table-wrap">
-              <table class="method-table compact-method-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Shot type</th>
-                    <th scope="col" class="numeric">Shooter share</th>
-                    <th scope="col" class="numeric">Assister share</th>
-                  </tr>
-                </thead>
-                <tbody id="shot-share-body"></tbody>
-              </table>
-            </div>
-            <p class="method-note">
-              These are actor shares, not final VC. Rebounds, screens, secondary
-              assists, and other linked actions can redistribute parts of the
-              same possession’s value before team-game normalization.
-            </p>
+            <div class="section-heading-row"><div><p class="section-label">ACTION-VALUE GUIDE</p><h2>What the baseline rewards and charges</h2></div><div class="legend-pills" aria-label="Action effect legend"><span class="credit-pill">Credit</span><span class="penalty-pill">Penalty</span><span class="transfer-pill">Transfer</span></div></div>
+            <p>These cards summarize the inherited baseline. Transfers redistribute existing value between linked contributors; they do not create a new team pool.</p>
+            <div id="action-groups"></div>
           </section>
 
           <section id="shot-defense" class="method-section">
-            <p class="section-label">SHOT DEFENSE</p>
-            <h2>Defended shots and blocks use shot location</h2>
-            <p>
-              A defended miss earns <code>shot points × location rate</code>.
-              A defended make produces a penalty of
-              <code>−(shot points − opponent possession value) × rate</code>.
-              An exact block uses the shot’s face value and a rate ten
-              percentage points above the defended-shot rate.
-            </p>
-
-            <div class="defense-rate-grid">
-              <div>
-                <h3>Defended-shot rate</h3>
-                <div class="method-table-wrap">
-                  <table class="method-table rate-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Location</th>
-                        <th scope="col" class="numeric">Rate</th>
-                      </tr>
-                    </thead>
-                    <tbody id="dfg-rate-body"></tbody>
-                  </table>
-                </div>
-              </div>
-              <div>
-                <h3>Exact-block rate</h3>
-                <div class="method-table-wrap">
-                  <table class="method-table rate-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Blocked-shot location</th>
-                        <th scope="col" class="numeric">Rate</th>
-                      </tr>
-                    </thead>
-                    <tbody id="block-rate-body"></tbody>
-                  </table>
-                </div>
-              </div>
+            <p class="section-label">SHOT CREATION AND DEFENSE</p>
+            <h2>Role shares and location-specific defense</h2>
+            <div class="method-table-grid">
+              <div><h3>Made-shot shares</h3><div class="table-scroll"><table><thead><tr><th>Outcome</th><th>Shooter</th><th>Assister</th></tr></thead><tbody id="shot-share-body"></tbody></table></div></div>
+              <div><h3>Defended-shot rates</h3><div class="table-scroll"><table><thead><tr><th>Location</th><th>Rate</th></tr></thead><tbody id="dfg-rate-body"></tbody></table></div></div>
+              <div><h3>Exact-block rates</h3><div class="table-scroll"><table><thead><tr><th>Location</th><th>Rate</th></tr></thead><tbody id="block-rate-body"></tbody></table></div></div>
             </div>
-
-            <div class="definition-callout block-callout">
-              <strong>Why the table still contains BLOCK = 0.80:</strong>
-              0.80 is the base engine weight and the familiar historical
-              assumption. In the V4 base <code>volume_v3</code> calculation,
-              exact blocks use the location rates above instead. A block that
-              the offense recovers and turns into a score is recorded as a
-              zero-value diagnostic, and the same shot cannot also receive
-              defended-miss credit.
-            </div>
-          </section>
-
-          <section id="final-score" class="method-section">
-            <p class="section-label">FROM ACTIONS TO FINAL VC</p>
-            <h2>V6 values each action before it closes the team</h2>
-
-            <div class="formula-stack">
-              <div>
-                <span>Pre-context action value</span>
-                <code>signed outcome value × role coefficient × participant share</code>
-              </div>
-              <div>
-                <span>Context signal</span>
-                <code>teammate signal + opponent signal, weighted by exact exposure</code>
-              </div>
-              <div>
-                <span>Final action value</span>
-                <code>pre-context value × sign-preserving context multiplier</code>
-              </div>
-              <div>
-                <span>Final game share</span>
-                <code>signed-gross base share + positive-player residual close</code>
-              </div>
-            </div>
-
-            <p class="method-note">
-              Made-shot shooter and assister rows start with the shot’s full
-              two- or three-point face value and use the shot-type templates
-              shown above. Misses and free throws compare the possession’s
-              realized points with its team-specific expected value.
-            </p>
-
-            <p>
-              The preserved V5/V4/V3 selectors use their earlier nonnegative
-              closures. V6 intentionally does not floor every player above zero:
-              negative shares expose net penalties while a DNP remains exactly
-              zero. The possible future active-player floor is recorded only as
-              a research option and is not part of this run.
-            </p>
-
-            <div id="factor-policy" class="factor-grid" aria-live="polite"></div>
           </section>
 
           <section id="full-reference" class="method-section">
-            <p class="section-label">COMPLETE ENGINE REFERENCE</p>
-            <div class="section-heading-row reference-heading">
-              <div>
-                <h2>Every component key and base weight</h2>
-                <p>
-                  The readable cards above cover the individual basketball
-                  actions. This table exposes the full internal vocabulary,
-                  including composite possession states and zero-value
-                  diagnostics. Direct rebound and location rules can override a
-                  base component weight as noted.
-                </p>
-              </div>
-              <label class="control reference-search">
-                <span>Find a component</span>
-                <input
-                  id="weight-search"
-                  type="search"
-                  placeholder="e.g. BLOCK, ASSIST, OREB"
-                  autocomplete="off"
-                />
-              </label>
-            </div>
-
-            <p id="reference-count" class="reference-count" aria-live="polite"></p>
-            <div class="method-table-wrap full-reference-wrap">
-              <table class="method-table full-reference-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Engine component</th>
-                    <th scope="col" class="numeric">Base weight</th>
-                    <th scope="col">Current-policy note</th>
-                  </tr>
-                </thead>
-                <tbody id="weight-reference-body"></tbody>
-              </table>
-            </div>
+            <p class="section-label">BASELINE REFERENCE</p>
+            <h2>Search the inherited component weights</h2>
+            <label class="method-search"><span>Filter by component key or note</span><input id="weight-search" type="search" autocomplete="off" placeholder="Try BLOCK, OREB, ASSIST…" /></label>
+            <p id="reference-count" class="reference-count"></p>
+            <div class="table-scroll full-reference-table"><table><thead><tr><th>Component</th><th>Weight</th><th>Note</th></tr></thead><tbody id="weight-reference-body"></tbody></table></div>
           </section>
 
           <section id="limits" class="method-section">
-            <p class="section-label">CURRENT LIMITS</p>
-            <h2>What this calculation still does not see</h2>
-            <div class="limits-grid">
-              <div>
-                <strong>No gravity or deterrence estimate</strong>
-                <p>
-                  It does not yet measure defenders avoiding a rim protector or
-                  defenders staying attached to an off-ball shooter.
-                </p>
-              </div>
-              <div>
-                <strong>No loose-ball or deflection bonus</strong>
-                <p>
-                  Those counts are excluded because their overlap with steals,
-                  rebounds, and possession changes is not reliably resolved.
-                </p>
-              </div>
-              <div>
-                <strong>Team rebounds are not player rebounds</strong>
-                <p>
-                  A team rebound remains audit information and is never spread
-                  across individual players.
-                </p>
-              </div>
-              <div>
-                <strong>Calculated, not formally certified</strong>
-                <p>
-                  The complete local calculation passed its current audits, but
-                  source freeze and independent certification remain separate.
-                </p>
-              </div>
-            </div>
+            <p class="section-label">INTERPRETATION AND LIMITS</p>
+            <h2>It measures this recorded system, not every basketball skill</h2>
+            <p>Value Contributed depends on the accuracy and coverage of recorded play-by-play, lineups, tracking inputs, and governed role inference. It does not make unrecorded communication, scheme, or off-ball influence directly observable. Context is an explicit model contribution—not proof of individual causation.</p>
+            <p>Use browser experiments to inspect sensitivity to defensive context and small off-court samples. Those what-if calculations stay local and do not replace the immutable public Original baseline.</p>
           </section>
         </article>
       </div>
