@@ -2992,9 +2992,15 @@ body.chart-expanded {
   }
 
   .rankings-table,
+  .rankings-table.original-rankings,
   .rankings-table.record-columns-expanded,
+  .rankings-table.original-rankings.record-columns-expanded,
   .rankings-table.context-columns-expanded,
+  .rankings-table.original-rankings.context-columns-expanded,
+  .rankings-table.original-rankings.record-columns-expanded.context-columns-expanded,
   .rankings-table.record-columns-expanded.context-columns-expanded {
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
   }
 

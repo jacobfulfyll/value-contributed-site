@@ -1261,7 +1261,7 @@
       // The visible dashboard still tops out at 250 rows. Its custom-range
       // aggregator requests each complete season snapshot before applying the
       // user-facing limit, and an NBA season remains comfortably below 1,000.
-      const limit = queryInteger(params, "limit", 50, 1, 1000);
+      const limit = queryInteger(params, "limit", 25, 1, 1000);
       const search = queryValue(params, "search", "").trim().toLocaleLowerCase();
       if (search.length > 80) fail("invalid_static_api_query", "search is too long.", 422);
       const payload = await repository.snapshot("rankings", slug, {

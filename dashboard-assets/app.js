@@ -4657,7 +4657,7 @@ async function initialize(experimentLabReady = Promise.resolve()) {
     const requestedLimit = params.get("limit");
     elements.limit.value = ["25", "50", "100", "250"].includes(requestedLimit)
       ? requestedLimit
-      : "50";
+      : "25";
 
     const requestedTrendPhase = params.get("trend_phase");
     const validTrendPhases = ["All", "Regular Season", "Postseason"];

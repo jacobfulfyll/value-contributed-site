@@ -181,7 +181,7 @@ export function mergeSeasonRankingPayloads(payloads, {
   sortDirection = "desc",
   metric = "value_contributed",
   search = "",
-  limit = 50,
+  limit = 25,
 } = {}) {
   const first = assertCompatiblePayloads(payloads);
   const selectedSeasons = [...new Set((seasons || payloads.map((payload) => payload.season)).map(String))];
