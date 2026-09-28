@@ -3,129 +3,199 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="How the Original Value Contributed rankings turn NBA actions, lineup context, and responsibility into exact team-game shares." />
-    <title>How Original Value Contributed Is Calculated</title>
-    <link rel="stylesheet" href="../dashboard-assets/styles.css?v=20260902-editor-clarity-v3" />
-    <link rel="stylesheet" href="../dashboard-assets/methodology.css?v=20260830-original" />
-    <script src="../dashboard-assets/methodology.js?v=20260830-original" defer></script>
-      <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://value-contributed-original-packages.jacob-press3.workers.dev; img-src 'self' data:; font-src 'self'; worker-src 'self'; form-action 'self'" />
-      <meta name="original-package-manifest" content="../data/original-package-manifest.json" />
-      <meta name="original-package-manifest-sha256" content="9fc160dcb213dc7ea1eedd349c87aea8c88034b43b5c41dea5adbc2b6a1616fe" />
-      <meta name="original-projection-manifest-url" content="../data/original-public-projection-manifest.json" />
-      <meta name="original-projection-manifest-sha256" content="2cfdcdcb59320f2b99a82a8f4342ee361264a203eb490833dfdba41e89eb24a5" />
-      <meta name="original-methodology-url" content="../data/methodology.json" />
-      <meta name="original-methodology-sha256" content="5e063c2b3e98c454bc4f84b6f22fbadc2bec90fd6a90a6b0e44a4bd247bd3d49" />
-      <script src="../dashboard-assets/static-api.js"></script>
+    <meta name="vc-experiments" content="off" />
+    <meta name="description" content="How Value Contributed splits one NBA game into shares: every team totals exactly 1, offense and defense are both signed, and nothing is credited for standing on the floor." />
+    <title>How Value Contributed Is Calculated</title>
+
+    <!-- The mark, the browser chrome colour and what a shared link says.
+         No og:image: the site has no honest one to point at, and the tree is
+         served from a host these pages do not know the name of. -->
+    <script src="../dashboard-assets/v11-static-api.js"></script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2313251f'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='17' font-weight='700' text-anchor='middle' fill='%23d7ff54'%3EV%3C/text%3E%3C/svg%3E" />
+    <meta name="theme-color" content="#f4f0e7" />
+    <meta name="apple-mobile-web-app-title" content="Value Contributed" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Value Contributed" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="How Value Contributed is calculated" />
+    <meta property="og:description" content="How Value Contributed splits one NBA game into shares: every team totals exactly 1, offense and defense are both signed, and nothing is credited for standing on the floor." />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="How Value Contributed is calculated" />
+    <meta name="twitter:description" content="How Value Contributed splits one NBA game into shares: every team totals exactly 1, offense and defense are both signed, and nothing is credited for standing on the floor." />
+    <link rel="stylesheet" href="../dashboard-assets/styles.css" />
+    <link rel="stylesheet" href="../dashboard-assets/methodology.css" />
+    <script src="../dashboard-assets/page-notice.js?v=v11-page-notice-1" defer></script>
+    <script src="../dashboard-assets/methodology.js" defer></script>
   </head>
   <body>
+    <noscript class="page-noscript">This page is drawn in your browser, so JavaScript has to be on to read the worked example and the settings tables.</noscript>
     <main class="shell methodology-shell">
       <nav class="site-nav" aria-label="Primary navigation">
         <a href="../">Rankings</a>
-        <a href="../experiments/">Experiments</a>
-        <a href="./" aria-current="page">How it’s calculated</a>
+        <a href="../seasons/">Seasons</a>
+        <a href="../players/">Players</a>
+        <a href="../teams/">Teams</a>
+        
+        
+        <a href="../how-it-works/" aria-current="page">Methodology</a>
       </nav>
 
       <header class="hero methodology-hero">
         <div>
-          <p class="eyebrow">THE ORIGINAL FORMULA · PLAIN LANGUAGE</p>
-          <h1>From recorded actions to one exact team share</h1>
-          <p class="lede">Original Value Contributed reprices possession-level actions, adds six exact lineup-context contributions, closes every team and time mode to one, then explains the result as Offense, Defense, and Other.</p>
+          <p class="eyebrow">VALUE CONTRIBUTED · PLAIN LANGUAGE</p>
+          <h1>One game, split into shares</h1>
+          <p class="lede" id="page-summary">Value Contributed splits one NBA game into shares. Every team’s players add up to exactly 1, offense and defense are measured separately, and nobody is paid for standing on the floor.</p>
         </div>
-        <div class="status-card" aria-label="Methodology status">
+        <div class="status-card" aria-label="Coverage">
           <span class="status-dot" aria-hidden="true"></span>
-          <div><strong id="policy-name">Loading the official release…</strong><span>Immutable full-history calculation</span></div>
+          <div><strong id="policy-name">Loading…</strong><span id="policy-coverage">The current calculation</span></div>
         </div>
       </header>
 
       <div id="methodology-error" class="error-message" role="alert" hidden></div>
+      <p id="methodology-v12-note" class="chart-note" hidden></p>
+      <p id="methodology-v13-note" class="chart-note" hidden></p>
       <div class="methodology-layout">
         <aside class="methodology-nav" aria-label="On this page">
           <p class="section-label">ON THIS PAGE</p>
-          <a href="#big-picture">The calculation</a>
-          <a href="#official-rankings">Three official rankings</a>
-          <a href="#context">Six context factors</a>
-          <a href="#experiments">Browser experiments</a>
-          <a href="#action-values">Action-value guide</a>
-          <a href="#shot-defense">Shot and defense rates</a>
-          <a href="#full-reference">Weight reference</a>
-          <a href="#limits">Interpretation and limits</a>
+          <a href="#big-picture">The idea</a>
+          <a href="#worked-example">One real game</a>
+          <a href="#steps">How a game becomes shares</a>
+          <a href="#promises">What the number promises</a>
+          <a href="#evidence">What counts as evidence</a>
+          <a href="#settings">Every setting</a>
+          <a href="#checks">How it was checked</a>
+          
+          <a href="#limits">What it cannot do</a>
+          <a href="#earlier">Earlier versions</a>
         </aside>
 
         <article class="methodology-content">
-          <section id="big-picture" class="method-section method-intro">
-            <p class="section-label">THE CALCULATION</p>
-            <h2>Five governed stages, two exact explanations</h2>
-            <p class="method-lede">A coefficient such as <strong>0.80</strong> is an action weight, not 0.80 wins. The weights create signed evidence inside one game; the final number is the player’s share of that team-game result.</p>
-            <ol class="calculation-steps">
-              <li><span>1</span><div><strong>Reprice frozen facts</strong><p>Apply the selected play-level coefficients to immutable semantic events.</p></div></li>
-              <li><span>2</span><div><strong>Classify components</strong><p>Place every signed component in Offense, Defense, or Other.</p></div></li>
-              <li><span>3</span><div><strong>Measure six contexts</strong><p>Calculate General, Teammate, and Opponent factors for both sides and split their joint effect with Shapley values.</p></div></li>
-              <li><span>4</span><div><strong>Adjust and close</strong><p>Apply context without flipping signs, floor negative final shares, and close each team exactly to one.</p></div></li>
-              <li><span>5</span><div><strong>Allocate responsibility</strong><p>Scale component evidence with its side, then run the exact responsibility allocator.</p></div></li>
-            </ol>
+          <section id="big-picture" class="method-section method-intro" aria-labelledby="big-picture-heading">
+            <p class="section-label">THE IDEA</p>
+            <h2 id="big-picture-heading">A basketball game is worth exactly one thing</h2>
+            <p class="method-lede">One team’s night is one unit of value. Value Contributed hands that unit out to the players who produced it. Add up a team’s players and you get <strong>1</strong> — never 0.98, never 1.02. Win the game and that unit is a win.</p>
             <div class="formula-stack">
-              <div><span>Context identity</span><code>Raw VC + six context components = Final VC</code></div>
-              <div><span>Responsibility identity</span><code>Offense + Defense + Other = Final VC</code></div>
-              <div><span>Team close</span><code>Σ player Final VC = 1 for each team, game, and time mode</code></div>
+              <div><span>Every team, every game</span><code>all of a team’s players together = 1</code></div>
+              <div><span>Every player</span><code>offense + defense = that player’s share</code></div>
+              <div><span>Only in a win</span><code>the same share = Wins Contributed</code></div>
             </div>
-            <div class="definition-callout"><strong>Value Contributed</strong> sums selected game shares. <strong>Wins Contributed</strong> uses the same shares only in games the player’s team won.</div>
+            <h3>Words used on this page</h3>
+            <dl id="definition-list" class="definition-list"></dl>
           </section>
 
-          <section id="official-rankings" class="method-section">
-            <p class="section-label">OFFICIAL RANKINGS</p>
-            <h2>One public Original baseline</h2>
-            <p>The public ranking covers all 16,795 games in both time modes with every raw coefficient and each measured context effect at its 1× baseline. Stronger defensive-context magnifiers belong in private browser experiments, where small off-court samples can be evaluated with explicit reliability settings.</p>
-            <div id="official-profiles" class="official-profile-grid" aria-live="polite"></div>
+          <section id="worked-example" class="method-section" aria-labelledby="worked-example-heading">
+            <p class="section-label">ONE REAL GAME</p>
+            <h2 id="worked-example-heading">Watch a single game add up to one</h2>
+            <p id="example-intro">Loading a game…</p>
+            <div id="example-teams" class="example-teams"></div>
+            <p class="method-note" id="example-note"></p>
           </section>
 
-          <section id="context" class="method-section">
-            <p class="section-label">SIX-FACTOR CONTEXT</p>
-            <h2>Context explains how the lineup changed raw value</h2>
-            <p>The expanded view shows General O, Teammate O, Opponent O, General D, Teammate D, and Opponent D. The display names the side affected: Opponent O is derived from opponent defense, while Opponent D is derived from opponent offense. The collapsed view is the exact sum of those same columns—never a second calculation.</p>
-            <div class="formula-stack">
-              <div><span>Offense Context</span><code>General O + Teammate O + Opponent O</code></div>
-              <div><span>Defense Context</span><code>General D + Teammate D + Opponent D</code></div>
-            </div>
-            <div id="context-policy" class="factor-grid"></div>
-            <p><code>lambda</code> controls the importance of on/off performance. <code>K</code> shrinks small off-court samples. A magnifier of 1 preserves a factor, 0 removes it, and values above 1 amplify it.</p>
+          <section id="steps" class="method-section" aria-labelledby="steps-heading">
+            <p class="section-label">HOW A GAME BECOMES SHARES</p>
+            <h2 id="steps-heading">Eight steps, start to finish</h2>
+            <p>Each step is finished before the next one starts. Nothing at the end reaches back and changes what a play was worth.</p>
+            <ol id="pipeline-steps" class="calculation-steps"></ol>
           </section>
 
-          <section id="experiments" class="method-section">
-            <p class="section-label">BROWSER-LOCAL EXPERIMENTS</p>
-            <h2>Change the formula without sending results anywhere</h2>
-            <p>On desktop, the Experiment Lab presents ten clearer play-credit sliders—positive scoring, playmaking, offensive rebounding, missed shots, turnovers, offensive shortfalls, defensive rebounding, helpers/hustle, defense, and fouls/administration—plus all 68 Advanced coefficients, six context magnifiers, and offense/defense K and lambda. Each play-credit slider runs from 0× to 2× with Original centered at 1×. The ten controls are translated deterministically into the frozen six-group configuration plus exact coefficient overrides. When one category is amplified, policy remainder decreases first; if necessary, the other unedited roles in that complete play are reduced proportionally to keep the allocation at one possession. Explicit Advanced edits are protected and never changed automatically. If protected values alone cannot fit, the run remains blocked with an error.</p>
-            <div class="definition-callout">Season packages are verified before calculation. Configurations, checkpoints, and results stay in IndexedDB on this device. There are no experiment-result network writes. Ranking cards are rendered as PNG images in the browser; nothing is uploaded unless you explicitly share the finished image through your device.</div>
+          <section id="promises" class="method-section" aria-labelledby="promises-heading">
+            <p class="section-label">WHAT THE NUMBER PROMISES</p>
+            <h2 id="promises-heading">The rules this statistic will not break</h2>
+            <p>These are decisions about what the number means, not settings that get tuned.</p>
+            <div id="principle-grid" class="limits-grid"></div>
           </section>
 
-          <section id="action-values" class="method-section">
-            <div class="section-heading-row"><div><p class="section-label">ACTION-VALUE GUIDE</p><h2>What the baseline rewards and charges</h2></div><div class="legend-pills" aria-label="Action effect legend"><span class="credit-pill">Credit</span><span class="penalty-pill">Penalty</span><span class="transfer-pill">Transfer</span></div></div>
-            <p>These cards summarize the inherited baseline. Transfers redistribute existing value between linked contributors; they do not create a new team pool.</p>
-            <div id="action-groups"></div>
-          </section>
-
-          <section id="shot-defense" class="method-section">
-            <p class="section-label">SHOT CREATION AND DEFENSE</p>
-            <h2>Role shares and location-specific defense</h2>
+          <section id="evidence" class="method-section" aria-labelledby="evidence-heading">
+            <p class="section-label">WHAT COUNTS AS EVIDENCE</p>
+            <h2 id="evidence-heading">Only things that actually happened</h2>
+            <p>Every share traces back to a recorded action. Here is the whole list, and how the plays that create most of the value are divided up.</p>
             <div class="method-table-grid">
-              <div><h3>Made-shot shares</h3><div class="table-scroll"><table><thead><tr><th>Outcome</th><th>Shooter</th><th>Assister</th></tr></thead><tbody id="shot-share-body"></tbody></table></div></div>
-              <div><h3>Defended-shot rates</h3><div class="table-scroll"><table><thead><tr><th>Location</th><th>Rate</th></tr></thead><tbody id="dfg-rate-body"></tbody></table></div></div>
-              <div><h3>Exact-block rates</h3><div class="table-scroll"><table><thead><tr><th>Location</th><th>Rate</th></tr></thead><tbody id="block-rate-body"></tbody></table></div></div>
+              <div>
+                <h3>Offense</h3>
+                <ul id="offense-evidence" class="evidence-list"></ul>
+              </div>
+              <div>
+                <h3>Defense</h3>
+                <ul id="defense-evidence" class="evidence-list"></ul>
+              </div>
+            </div>
+            <p class="method-note" id="evidence-excluded"></p>
+
+            <h3>A made shot is one play, shared out</h3>
+            <p id="made-shot-note"></p>
+            <div class="method-table-wrap">
+              <table class="method-table">
+                <caption class="visually-hidden">Shares of a made shot</caption>
+                <thead><tr><th scope="col">Play</th><th scope="col">Who gets what</th></tr></thead>
+                <tbody id="made-shot-body"></tbody>
+              </table>
+            </div>
+
+            <h3>Shooter and passer split by the kind of pass</h3>
+            <p id="assisted-note"></p>
+            <div class="method-table-wrap">
+              <table class="method-table compact-method-table">
+                <caption class="visually-hidden">Assisted shot splits</caption>
+                <thead><tr><th scope="col">Pass</th><th scope="col">Shooter</th><th scope="col">Passer</th></tr></thead>
+                <tbody id="assisted-split-body"></tbody>
+              </table>
+            </div>
+
+            <h3>Defended shots are weighted by where they were taken</h3>
+            <p id="defended-note"></p>
+            <div class="method-table-wrap">
+              <table class="method-table compact-method-table">
+                <caption class="visually-hidden">Defended shot weights by location</caption>
+                <thead><tr><th scope="col">Shot</th><th scope="col">Weight</th></tr></thead>
+                <tbody id="defended-shot-body"></tbody>
+              </table>
+            </div>
+
+            <h3>Plays that end a possession outright</h3>
+            <p id="possession-note"></p>
+            <div class="method-table-wrap">
+              <table class="method-table compact-method-table">
+                <caption class="visually-hidden">Possession-ending play values</caption>
+                <thead><tr><th scope="col">Play</th><th scope="col">Who</th><th scope="col">Value</th></tr></thead>
+                <tbody id="possession-body"></tbody>
+              </table>
             </div>
           </section>
 
-          <section id="full-reference" class="method-section">
-            <p class="section-label">BASELINE REFERENCE</p>
-            <h2>Search the inherited component weights</h2>
-            <label class="method-search"><span>Filter by component key or note</span><input id="weight-search" type="search" autocomplete="off" placeholder="Try BLOCK, OREB, ASSIST…" /></label>
-            <p id="reference-count" class="reference-count"></p>
-            <div class="table-scroll full-reference-table"><table><thead><tr><th>Component</th><th>Weight</th><th>Note</th></tr></thead><tbody id="weight-reference-body"></tbody></table></div>
+          <section id="settings" class="method-section" aria-labelledby="settings-heading">
+            <p class="section-label">EVERY SETTING</p>
+            <h2 id="settings-heading">Every number in the calculation, and what it does</h2>
+            <p>These are published in full. Each one is read straight from the code that scores the games, so this table cannot fall out of date.</p>
+            <div id="constant-groups"></div>
           </section>
 
-          <section id="limits" class="method-section">
-            <p class="section-label">INTERPRETATION AND LIMITS</p>
-            <h2>It measures this recorded system, not every basketball skill</h2>
-            <p>Value Contributed depends on the accuracy and coverage of recorded play-by-play, lineups, tracking inputs, and governed role inference. It does not make unrecorded communication, scheme, or off-ball influence directly observable. Context is an explicit model contribution—not proof of individual causation.</p>
-            <p>Use browser experiments to inspect sensitivity to defensive context and small off-court samples. Those what-if calculations stay local and do not replace the immutable public Original baseline.</p>
+          <section id="checks" class="method-section" aria-labelledby="checks-heading">
+            <p class="section-label">HOW IT WAS CHECKED</p>
+            <h2 id="checks-heading">What was proved before any of this was published</h2>
+            <p id="validation-note"></p>
+            <div id="validation-grid" class="limits-grid"></div>
+          </section>
+
+
+
+          <section id="limits" class="method-section" aria-labelledby="limits-heading">
+            <p class="section-label">WHAT IT CANNOT DO</p>
+            <h2 id="limits-heading">Known limits, stated plainly</h2>
+            <p>Every one of these is a real weakness of the statistic. None of them is hidden in a footnote elsewhere.</p>
+            <div id="limit-grid" class="limits-grid"></div>
+          </section>
+
+          <section id="earlier" class="method-section" aria-labelledby="earlier-heading">
+            <p class="section-label">EARLIER VERSIONS</p>
+            <h2 id="earlier-heading">What came before</h2>
+            <p>Earlier versions are kept for comparison only. Nothing on this page describes them, and none of their rules are used in the figures this site publishes.</p>
+            <div id="earlier-grid" class="limits-grid"></div>
+            <details class="method-details">
+              <summary>Technical details</summary>
+              <dl id="provenance-list" class="profile-facts"></dl>
+            </details>
           </section>
         </article>
       </div>

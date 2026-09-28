@@ -20,6 +20,10 @@ function abortError(error) {
   return error?.name === "AbortError" || error?.code === "experiment_cancelled";
 }
 
+function yieldToWorkerEventLoop() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function assertKernel(calculator) {
   if (!calculator || typeof calculator.calculateSeason !== "function") {
     throw new TypeError("The browser package calculator must expose calculateSeason().");
@@ -59,6 +63,7 @@ export class OriginalExperimentWorkerRuntime {
     cryptoImpl = globalThis.crypto,
     storageManager = globalThis.navigator?.storage,
     environment = {},
+    seasonBatchSize = Number.POSITIVE_INFINITY,
   } = {}) {
     if (!store) throw new TypeError("An experiment store is required.");
     this.store = store;
@@ -68,6 +73,9 @@ export class OriginalExperimentWorkerRuntime {
     this.cryptoImpl = cryptoImpl;
     this.storageManager = storageManager;
     this.environment = environment;
+    this.seasonBatchSize = Number.isFinite(Number(seasonBatchSize))
+      ? Math.max(1, Math.floor(Number(seasonBatchSize)))
+      : Number.POSITIVE_INFINITY;
     this.active = null;
   }
 
@@ -193,10 +201,36 @@ export class OriginalExperimentWorkerRuntime {
 
   async run(experimentId, manifest, configuration, signal) {
     await this.store.beginRun(experimentId);
-    this.emit(WorkerEvent.STATE, { experimentId, status: "running" });
     try {
       const progress = await this.store.getProgress(experimentId);
       const completed = new Set(progress.completedSeasons);
+      const selectedSeasonDescriptors = progress.selectedSeasons.map((seasonEndYear) => {
+        const season = manifest.seasons.find((candidate) => candidate.season_end_year === seasonEndYear);
+        if (!season) throw new BrowserExperimentError("season_unavailable", `Season ${seasonEndYear} is absent.`);
+        return season;
+      });
+      const totalGames = selectedSeasonDescriptors.reduce((sum, season) => sum + season.game_count, 0);
+      let completedGames = selectedSeasonDescriptors
+        .filter((season) => completed.has(season.season_end_year))
+        .reduce((sum, season) => sum + season.game_count, 0);
+      let seasonsProcessedThisPass = 0;
+      const runProgress = (stage, season = null, patch = {}) => ({
+        stage,
+        completedGames,
+        totalGames,
+        currentGameId: null,
+        seasonEndYear: season?.season_end_year ?? null,
+        seasonCompletedGames: season && completed.has(season.season_end_year)
+          ? season.game_count
+          : 0,
+        seasonTotalGames: season?.game_count ?? null,
+        ...patch,
+      });
+      this.emit(WorkerEvent.STATE, {
+        experimentId,
+        status: "running",
+        runProgress: runProgress("preparing"),
+      });
       const catalog = await getVerifiedCatalog({
         store: this.store,
         manifest,
@@ -212,15 +246,19 @@ export class OriginalExperimentWorkerRuntime {
         byteCount: catalog.descriptor.byte_count,
         rowCount: 1,
         source: catalog.source,
+        runProgress: runProgress("catalog-verified"),
       });
-      for (const seasonEndYear of progress.selectedSeasons) {
+      for (const season of selectedSeasonDescriptors) {
+        const seasonEndYear = season.season_end_year;
         signal.throwIfAborted();
         if (completed.has(seasonEndYear)) continue;
-        const season = manifest.seasons.find((candidate) => candidate.season_end_year === seasonEndYear);
-        if (!season) throw new BrowserExperimentError("season_unavailable", `Season ${seasonEndYear} is absent.`);
         await this.store.clearSeasonPartial(experimentId, seasonEndYear);
         await this.store.beginSeason(experimentId, seasonEndYear);
-        this.emit(WorkerEvent.SEASON_STARTED, { experimentId, seasonEndYear });
+        this.emit(WorkerEvent.SEASON_STARTED, {
+          experimentId,
+          seasonEndYear,
+          runProgress: runProgress("verifying-packages", season),
+        });
         const packages = await getVerifiedSeasonShards({
           store: this.store,
           manifest,
@@ -228,16 +266,36 @@ export class OriginalExperimentWorkerRuntime {
           fetchImpl: this.fetchImpl,
           cryptoImpl: this.cryptoImpl,
           signal,
-          onVerified: (details) => this.emit(WorkerEvent.SHARD_VERIFIED, { experimentId, ...details }),
+          onVerified: (details) => this.emit(WorkerEvent.SHARD_VERIFIED, {
+            experimentId,
+            ...details,
+            runProgress: runProgress("verifying-packages", season),
+          }),
         });
-        const completion = await this.calculateSeason({
+        let completion;
+        try {
+          completion = await this.calculateSeason({
+            experimentId,
+            manifest,
+            season,
+            configuration,
+            catalog,
+            packages,
+            signal,
+            completedGamesBeforeSeason: completedGames,
+            totalGames,
+          });
+        } finally {
+          packages.clear();
+        }
+        this.emit(WorkerEvent.STATE, {
           experimentId,
-          manifest,
-          season,
-          configuration,
-          catalog,
-          packages,
-          signal,
+          seasonEndYear,
+          status: "running",
+          runProgress: runProgress("checkpointing", season, {
+            completedGames: completedGames + season.game_count,
+            seasonCompletedGames: season.game_count,
+          }),
         });
         const receipt = await this.store.checkpointSeason(experimentId, seasonEndYear, {
           seasonReceipt: completion.seasonReceipt,
@@ -247,13 +305,33 @@ export class OriginalExperimentWorkerRuntime {
           timeModes: [...TIME_MODES],
           packageReceipt: season.package_receipt,
         });
+        completedGames += season.game_count;
+        completed.add(seasonEndYear);
         this.emit(WorkerEvent.SEASON_CHECKPOINT, {
           experimentId,
           seasonEndYear,
-          completedSeasons: [...completed, seasonEndYear].sort((a, b) => a - b),
+          completedSeasons: [...completed].sort((a, b) => a - b),
           receipt,
+          runProgress: runProgress("season-complete", season, {
+            seasonCompletedGames: season.game_count,
+          }),
         });
-        completed.add(seasonEndYear);
+        seasonsProcessedThisPass += 1;
+        await yieldToWorkerEventLoop();
+        const hasRemaining = selectedSeasonDescriptors.some((candidate) => !completed.has(candidate.season_end_year));
+        if (hasRemaining && seasonsProcessedThisPass >= this.seasonBatchSize) {
+          const progress = await this.store.updateProgress(experimentId, {
+            status: "interrupted",
+            currentSeason: null,
+            error: null,
+          });
+          this.emit(WorkerEvent.RECYCLE, {
+            experimentId,
+            progress,
+            runProgress: runProgress("reclaiming-memory"),
+          });
+          return progress;
+        }
       }
       const orderedReceipts = (await this.store.listReceipts(experimentId))
         .sort((left, right) => left.seasonEndYear - right.seasonEndYear)
@@ -282,7 +360,11 @@ export class OriginalExperimentWorkerRuntime {
       );
       assertZeroNetworkWrites(this.fetchImpl.audit.snapshot());
       const publication = await this.store.publishExperiment(experimentId, { aggregateReceipt, experimentReceipt });
-      this.emit(WorkerEvent.COMPLETE, { experimentId, publication });
+      this.emit(WorkerEvent.COMPLETE, {
+        experimentId,
+        publication,
+        runProgress: runProgress("complete", null, { completedGames: totalGames }),
+      });
       return publication;
     } catch (error) {
       if (abortError(error) || signal.aborted) {
@@ -295,7 +377,17 @@ export class OriginalExperimentWorkerRuntime {
     }
   }
 
-  async calculateSeason({ experimentId, manifest, season, configuration, catalog, packages, signal }) {
+  async calculateSeason({
+    experimentId,
+    manifest,
+    season,
+    configuration,
+    catalog,
+    packages,
+    signal,
+    completedGamesBeforeSeason = 0,
+    totalGames = season.game_count,
+  }) {
     const stream = this.calculator.calculateSeason({ manifest, season, configuration, catalog, packages, signal });
     if (!stream?.[Symbol.asyncIterator]) {
       throw new BrowserExperimentError("invalid_calculator_kernel", "calculateSeason() must return an async event stream.");
@@ -304,6 +396,8 @@ export class OriginalExperimentWorkerRuntime {
     let resultRowCount = 0;
     let aggregateRowCount = 0;
     let completion = null;
+    let seasonCompletedGames = 0;
+    let currentGameId = null;
     for await (const rawEvent of stream) {
       signal.throwIfAborted();
       const event = assertKernelEvent(rawEvent, season.season_end_year);
@@ -321,11 +415,29 @@ export class OriginalExperimentWorkerRuntime {
         if (!Array.isArray(event.rows) || event.rows.length === 0) continue;
         aggregateRowCount += await this.store.putAggregates(experimentId, season.season_end_year, event.rows);
       } else if (event.type === KernelEvent.PROGRESS) {
+        if (event.progress?.stage === "games") {
+          seasonCompletedGames = Number(event.progress.completed);
+          currentGameId = event.progress.currentGameId || null;
+        }
+        const stage = event.progress?.stage === "games"
+          ? "calculating-games"
+          : event.progress?.stage === "player-game-results"
+            ? "saving-results"
+            : "preparing-calculation";
         this.emit(WorkerEvent.STATE, {
           experimentId,
           seasonEndYear: season.season_end_year,
           status: "running",
           calculationProgress: event.progress,
+          runProgress: {
+            stage,
+            completedGames: completedGamesBeforeSeason + seasonCompletedGames,
+            totalGames,
+            currentGameId,
+            seasonEndYear: season.season_end_year,
+            seasonCompletedGames,
+            seasonTotalGames: season.game_count,
+          },
         });
       } else if (event.type === KernelEvent.SEASON_COMPLETE) {
         completion = event;

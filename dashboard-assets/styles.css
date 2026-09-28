@@ -17,7 +17,7 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: min(320px, 100%);
   color: var(--ink);
   background:
     radial-gradient(circle at 92% 0%, rgb(215 255 84 / 30%), transparent 28rem),
@@ -39,6 +39,20 @@ select {
   width: min(1440px, calc(100% - 40px));
   margin: 0 auto;
   padding: 56px 0 72px;
+}
+
+/* Every page is drawn in the browser, so every page says so when it cannot be.
+   One line, above the navigation, in the site's own colours. */
+.page-noscript {
+  display: block;
+  margin: 0 0 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-raised, #fffdf7);
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 .site-nav {
@@ -151,15 +165,22 @@ h1 {
   box-shadow: 0 0 0 5px rgb(31 107 80 / 12%);
 }
 
+/* The filters live inside the table card now, under its header row, so they are
+   drawn as an inset toolbar — the same treatment the record panels give their
+   own toolbars — rather than as a second floating card. */
 .controls {
   display: grid;
-  grid-template-columns: minmax(140px, 0.75fr) minmax(220px, 1fr) minmax(280px, 1.5fr) minmax(105px, 0.55fr);
+  /* The card is a little narrower than the page was, so the schedule column
+     carries its own minimum: "Regular season" has to fit inside the select. */
+  /* Seasons, schedule, game time, responsibility view, show — in that order
+     (owner's note, 2026-09-27). */
+  grid-template-columns: minmax(210px, 1.2fr) minmax(170px, 1fr) minmax(190px, 1fr) minmax(190px, 1fr) minmax(130px, 0.7fr);
   gap: 12px;
+  margin-bottom: 16px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgb(255 253 248 / 82%);
-  box-shadow: var(--shadow);
+  border-radius: 14px;
+  background: #f4f2ec;
 }
 
 .control {
@@ -436,10 +457,8 @@ h1 {
 .top-games-toolbar {
   display: grid;
   grid-template-columns:
-    minmax(160px, 0.7fr)
-    minmax(180px, 0.75fr)
-    minmax(300px, 1.25fr)
-    minmax(120px, 0.5fr);
+    minmax(240px, 1fr)
+    minmax(300px, 1.25fr);
   gap: 12px;
   margin-bottom: 16px;
   padding: 14px;
@@ -448,14 +467,18 @@ h1 {
   background: #f4f2ec;
 }
 
-.top-games-outcome-control {
+.top-games-outcome-control,
+.top-games-schedule-control,
+.high-value-schedule-control {
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-.top-games-outcome-control legend {
+.top-games-outcome-control legend,
+.top-games-schedule-control legend,
+.high-value-schedule-control legend {
   margin: 0 0 7px 2px;
   color: var(--muted);
   font-size: 0.7rem;
@@ -549,6 +572,10 @@ h1 {
 }
 
 .season-wins-toolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 560px) minmax(120px, 0.5fr);
+  align-items: end;
+  gap: 12px;
   margin-bottom: 16px;
   padding: 14px;
   border: 1px solid var(--line);
@@ -557,7 +584,8 @@ h1 {
 }
 
 .season-wins-phase-control {
-  width: min(100%, 560px);
+  width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
@@ -668,13 +696,6 @@ h1 {
   font-weight: 650;
 }
 
-.high-value-records-summary {
-  display: flex;
-  align-items: flex-end;
-  flex-direction: column;
-  gap: 8px;
-  margin-left: auto;
-}
 
 .high-value-records {
   order: 100;
@@ -760,15 +781,24 @@ h1 {
   border-top: 1px solid var(--line);
 }
 
+/* The schedule toggle and the count it applies to share one row, centred
+   against each other; on a narrow screen the count wraps below the toggle. */
 .high-value-records-toolbar {
-  display: grid;
-  grid-template-columns: minmax(240px, 360px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #f4f2ec;
+}
+
+.high-value-records-toolbar .high-value-schedule-control {
+  flex: 0 1 420px;
+  min-width: 240px;
 }
 
 .qualifier-count {
@@ -829,12 +859,29 @@ h1 {
   margin-bottom: 20px;
 }
 
+/* The table card's header row: the scope on the left, the ranking-card button
+   on the right, the two centred against each other. It stacks on a phone with
+   the rule the hero already carries. */
+.table-card-header {
+  align-items: center;
+  gap: 16px;
+}
+
 .results-heading h2 {
   margin-bottom: 0;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(1.5rem, 3vw, 2.25rem);
   font-weight: 500;
   letter-spacing: -0.025em;
+}
+
+/* The scope line is a sentence rather than a title — the green page title above
+   already carries the largest type — so it is set small enough to sit on one
+   line beside the share button at a reading width. */
+.table-card-header h2 {
+  font-size: clamp(1.05rem, 2vw, 1.4rem);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .results-meta {
@@ -850,24 +897,12 @@ h1 {
   border-radius: 12px;
 }
 
-.table-column-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 10px;
-}
-
-.table-column-toggle-actions,
 .ranking-share-control {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  flex-shrink: 0;
   gap: 8px;
-}
-
-.ranking-share-control {
   margin-left: auto;
 }
 
@@ -896,40 +931,6 @@ h1 {
   opacity: 0.45;
 }
 
-.column-group-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 34px;
-  padding: 7px 11px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--ink);
-  background: var(--surface);
-  cursor: pointer;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.column-group-toggle:hover,
-.column-group-toggle:focus-visible,
-.column-group-toggle[aria-expanded="true"] {
-  border-color: var(--accent-deep);
-  background: rgb(215 255 84 / 18%);
-  outline: none;
-}
-
-.column-group-toggle:focus-visible {
-  box-shadow: 0 0 0 3px rgb(31 107 80 / 18%);
-}
-
-.column-group-toggle-state {
-  color: var(--accent-deep);
-  font-size: 0.65rem;
-}
-
 .rankings-table-wrap {
   max-height: min(68vh, 720px);
   overflow: auto;
@@ -948,39 +949,20 @@ table {
 }
 
 .rankings-table {
-  min-width: 1640px;
+  min-width: 1010px;
 }
 
 .rankings-table.original-rankings {
-  min-width: 1980px;
+  min-width: 1350px;
 }
 
-.rankings-table.record-columns-expanded {
-  min-width: 1880px;
-}
-
-.rankings-table.original-rankings.record-columns-expanded {
-  min-width: 2220px;
-}
-
-.rankings-table.context-columns-expanded {
-  min-width: 2270px;
-}
-
-.rankings-table.record-columns-expanded.context-columns-expanded {
-  min-width: 2510px;
-}
-
-.rankings-table .record-column,
 .rankings-table .context-column {
   display: none;
 }
 
-.rankings-table.record-columns-expanded .record-column,
 .original-rankings .context-group-column,
 .original-rankings .context-raw-column,
-.original-rankings:not(.context-columns-expanded) .context-collapsed-column,
-.original-rankings.context-columns-expanded .context-expanded-column {
+.original-rankings .context-collapsed-column {
   display: table-cell;
 }
 
@@ -1108,10 +1090,6 @@ th[rowspan="2"] {
   box-shadow: inset 0 3px #6e9d55;
 }
 
-.category-other {
-  box-shadow: inset 0 3px #9a9285;
-}
-
 td {
   font-size: 0.91rem;
 }
@@ -1174,6 +1152,65 @@ tbody tr:hover .player-cell {
   font-weight: 750;
 }
 
+.compare-player-link {
+  display: inline-block;
+  margin: 0;
+  color: var(--accent-deep);
+  font-size: 0.64rem;
+  font-weight: 850;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.player-row-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+  color: #126b52;
+  font-size: .66rem;
+  font-weight: 850;
+  letter-spacing: .035em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.player-row-actions .player-teams { display: inline; margin: 0; font-size: inherit; }
+
+a.player-name {
+  color: var(--ink);
+  text-decoration-color: rgb(31 107 80 / 35%);
+  text-underline-offset: 3px;
+}
+
+a.player-name:hover,
+a.player-name:focus-visible,
+.player-teams a:hover,
+.player-teams a:focus-visible {
+  color: var(--accent-deep);
+  text-decoration-color: currentColor;
+}
+
+.player-teams a {
+  color: inherit;
+}
+
+.player-context-trigger {
+  display: block;
+  margin: 5px 0 0;
+  padding: 0;
+  border: 0;
+  color: var(--accent-deep);
+  background: transparent;
+  font-size: .67rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-color: rgb(31 107 80 / 35%);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 .player-id,
 .player-teams {
   display: block;
@@ -1208,6 +1245,19 @@ tbody tr:hover .player-cell {
 .context-composition-cell {
   min-width: 126px;
   background: rgb(215 255 84 / 7%);
+}
+
+.context-primary-percentage {
+  color: var(--ink);
+  font-size: .86rem;
+  font-weight: 850;
+}
+
+.context-raw-amount {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 650;
 }
 
 .context-raw-cell {
@@ -1334,6 +1384,76 @@ tbody tr:hover .player-cell {
   background: rgb(215 255 84 / 16%);
 }
 
+/* The six context factors over the selected scope, above the per-game list. */
+.context-factor-summary {
+  margin: 0 0 26px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfaf5;
+}
+
+.context-factor-summary h3 {
+  margin: 0 0 6px;
+}
+
+.context-factor-note {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.context-factor-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.context-factor {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid #c8a34b;
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.context-factor-defense {
+  border-left-color: #4c84a8;
+}
+
+.context-factor span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.context-factor strong {
+  font-family: var(--mono);
+  font-size: 1rem;
+}
+
+.context-factor small {
+  color: var(--muted);
+}
+
+.context-unavailable-note,
+.context-empty {
+  margin: 0 0 24px;
+  color: var(--muted);
+}
+
+.context-game-grid .context-unavailable p {
+  display: block;
+  text-align: left;
+}
+
 .context-games h3 {
   margin: 0 0 10px;
 }
@@ -1428,16 +1548,6 @@ tbody tr:hover .player-cell {
   white-space: nowrap;
 }
 
-.comparison-heading,
-.comparison-cell {
-  min-width: 170px;
-}
-
-.comparison-definition {
-  max-width: 980px;
-  margin-top: 8px;
-}
-
 .rankings-guide {
   margin-top: 18px;
   border: 1px solid #d8d4c8;
@@ -1492,8 +1602,871 @@ tbody tr:hover .player-cell {
   margin: 0;
 }
 
-.rankings-guide .comparison-definition {
-  margin-top: 7px;
+.rankings-view-switcher {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 18px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgb(255 253 248 / 86%);
+}
+
+.rankings-view-switcher button {
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.rankings-view-switcher button[aria-selected="true"] {
+  color: var(--ink);
+  background: var(--accent);
+}
+
+.rankings-view-switcher button:focus-visible {
+  outline: 2px solid var(--accent-deep);
+  outline-offset: 2px;
+}
+
+.rankings-visual-view {
+  margin-top: 24px;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgb(255 253 248 / 76%);
+  box-shadow: var(--shadow);
+}
+
+/* --- collapsible chart panels ------------------------------------------- */
+
+.chart-panels,
+.total-history {
+  margin-top: 18px;
+}
+
+/* The rankings page's three section headings — the table, the visuals and the
+   history. Each is a green tab attached to the top-left corner of the card it
+   names, so the heading reads as part of that card rather than as decoration
+   above it (the owner's choice among five candidates). */
+.page-section-title {
+  display: inline-block;
+  margin: 44px 0 0;
+  padding: 9px 20px 8px;
+  border: 1px solid var(--accent-deep);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  color: var(--surface);
+  background: var(--accent-deep);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1rem, 1.9vw, 1.3rem);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-align: left;
+  text-transform: none;
+}
+
+/* The card a tab is attached to: no gap beneath the tab and a square corner
+   where the tab meets it. The visuals and history sections are stacks of
+   panels, so their first panel takes the corner. */
+.page-section-title + .results,
+.page-section-title + .chart-panels,
+.page-section-title + .total-history {
+  margin-top: 0;
+}
+
+.page-section-title + .results,
+.page-section-title + .chart-panels > .chart-panel:first-of-type,
+.page-section-title + .total-history > .chart-panel:first-of-type {
+  border-top-left-radius: 0;
+}
+
+.page-section-title + .chart-panels > .chart-panel:first-of-type,
+.page-section-title + .total-history > .chart-panel:first-of-type {
+  margin-top: 0;
+}
+
+.chart-panels-lede {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.chart-panel > summary.chart-panel-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.chart-panel > summary.chart-panel-summary::-webkit-details-marker {
+  display: none;
+}
+
+.chart-panel > summary.chart-panel-summary:focus-visible {
+  border-radius: 10px;
+  outline: 3px solid rgb(31 107 80 / 24%);
+  outline-offset: 6px;
+}
+
+.chart-panel-summary-heading {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chart-panel-title {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.35rem, 2.6vw, 1.95rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.chart-panel-lede {
+  display: block;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.chart-panel-summary-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  color: var(--accent-deep);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chart-panel-summary-label::before {
+  content: "Open chart";
+}
+
+.chart-panel[open] .chart-panel-summary-label::before {
+  content: "Close chart";
+}
+
+.chart-panel-chevron {
+  font-size: 1.4rem;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+.chart-panel[open] .chart-panel-chevron {
+  transform: rotate(180deg);
+}
+
+.chart-panel-body {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.chart-drawn-note {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.rankings-visual-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+
+.rankings-visual-heading h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.55rem, 3vw, 2.4rem);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+.rankings-visual-note {
+  max-width: 570px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.rankings-visual-axis-note {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+.rankings-visual-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.rankings-visual-controls label {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.rankings-visual-controls select {
+  display: block;
+  min-width: 125px;
+  margin-top: 5px;
+  padding: 9px 28px 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.rankings-visual-chart {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-height: 430px;
+  overflow: hidden;
+}
+
+.rankings-visual-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rankings-visual-chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.rankings-visual-chart .chart-frame {
+  fill: none;
+  stroke: var(--line);
+}
+
+.rankings-visual-chart .reference-line,
+.rankings-visual-chart .diagonal-line {
+  fill: none;
+  stroke: #718078;
+  stroke-width: 1.4;
+  stroke-dasharray: 6 5;
+}
+
+.rankings-visual-chart text {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.rankings-visual-chart .axis-title,
+.rankings-visual-chart .point-label,
+.rankings-visual-chart .reference-label {
+  fill: var(--ink);
+  font-weight: 750;
+}
+
+.rankings-chart-hover {
+  display: flex;
+  min-height: 48px;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0 5px;
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.45;
+}
+
+.rankings-chart-hover strong { flex: 0 0 auto; color: var(--ink); font-size: .86rem; }
+
+.rankings-history-chart .history-lane-band { fill: transparent; }
+.rankings-history-chart .history-lane-band.is-odd { fill: rgba(31, 111, 79, .035); }
+.rankings-history-chart .history-lane-band.is-selected { fill: rgba(44, 123, 182, .12); }
+.rankings-history-chart .history-lane-label { font-weight: 700; }
+.rankings-history-chart .history-lane-label.is-selected { fill: #1f5f8f; font-weight: 900; }
+.rankings-history-chart .rankings-chart-hover { flex-wrap: wrap; }
+.rankings-chart-hover .history-career-line { flex-basis: 100%; font-size: .8rem; }
+.rankings-visual-chart .face-leader { stroke: #5f6f68; stroke-width: 1.2; opacity: .7; pointer-events: none; }
+.rankings-visual-chart text.region-label {
+  fill: #1f6b50;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .75;
+  pointer-events: none;
+}
+.chart-key-note { margin: 0 0 8px; color: var(--muted); font-size: .78rem; line-height: 1.5; max-width: 90ch; }
+.type-trend-svg { display: block; width: 100%; min-width: 620px; height: auto; aspect-ratio: 1120 / 580; overflow: visible; }
+.type-trend .trend-line { stroke-width: 2.4; opacity: .82; }
+.type-trend .trend-point { opacity: .9; }
+.type-trend .trend-point.partial-window { fill: var(--surface); }
+.type-trend.is-untyped .trend-line { stroke-dasharray: 5 4; }
+.type-trend.is-highlighted .trend-line { stroke-width: 4; opacity: 1; }
+.type-trend.is-muted { opacity: .12; }
+/* Each type's best players (owner's note, 2026-09-27): a list in the hover
+   card, and faces on the picked line or in the key. */
+.type-trend-faces { pointer-events: none; }
+.type-trend-leaders-title { display: block; margin-top: 6px; font-size: .72rem; }
+.type-trend-leaders { display: grid; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
+.type-trend-leaders li { display: grid; grid-template-columns: 26px minmax(0, 1fr); column-gap: 7px; align-items: center; }
+.type-trend-leaders li .type-trend-leader-face { grid-row: span 2; width: 26px; height: 26px; }
+.type-trend-leaders li > span:nth-child(2) { font-weight: 700; }
+.type-trend-leaders li small { color: var(--muted); }
+.type-trend-leader-face { display: inline-block; overflow: hidden; width: 22px; height: 22px; border: 1.5px solid var(--player-color, var(--line)); border-radius: 50%; background: #d9d6cc; }
+.type-trend-leader-face img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; }
+.type-trend-drawer {
+  margin: 2px 0 8px;
+  padding: 10px 10px 8px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--player-color, var(--line));
+  border-radius: 0 9px 9px 0;
+  background: #fffdf8;
+  font-size: .74rem;
+}
+.type-trend-drawer-head { display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; text-align: center; }
+.type-trend-drawer-head strong { font-size: .82rem; }
+.type-trend-drawer-head button {
+  width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 50%;
+  background: var(--surface, #fffdf8); color: var(--ink); font: inherit; font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.type-trend-drawer-head button:disabled { opacity: .35; cursor: default; }
+.type-trend-drawer-sub { margin: 5px 0; color: var(--muted); line-height: 1.35; }
+.type-trend-drawer-list { display: grid; gap: 7px; margin: 6px 0; padding: 0; list-style: none; }
+.type-trend-drawer-list li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; column-gap: 7px; row-gap: 3px; align-items: center; }
+.type-trend-drawer-list .type-trend-leader-face { width: 30px; height: 30px; grid-row: span 2; }
+.type-trend-drawer-name { display: grid; min-width: 0; }
+.type-trend-drawer-name a { overflow: hidden; color: var(--ink); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.type-trend-drawer-name small, .type-trend-drawer-value small { color: var(--muted); font-weight: 400; }
+.type-trend-drawer-value { display: grid; justify-items: end; font-weight: 700; }
+.type-trend-drawer-bar { grid-column: 2 / -1; height: 5px; border-radius: 3px; background: #ebe8df; overflow: hidden; }
+.type-trend-drawer-bar i { display: block; height: 100%; background: var(--player-color, var(--accent-deep)); }
+.legend-player[aria-expanded="true"] { background: rgb(215 255 84 / 26%); }
+.type-trend-picked-point { fill: none; stroke: var(--player-color, var(--ink)); stroke-width: 2.5; pointer-events: none; vector-effect: non-scaling-stroke; }
+.type-trend .trend-line { cursor: pointer; pointer-events: stroke; }
+.type-trend .trend-point { cursor: pointer; }
+.rankings-visual-chart .face-leader-spot { fill: #5f6f68; pointer-events: none; }
+
+.chart-view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  margin: 4px 0 14px;
+}
+.chart-view-controls:empty { display: none; }
+.chart-view-segment { display: inline-flex; align-items: center; gap: 0; flex-wrap: wrap; }
+.chart-view-label {
+  margin-right: 10px;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.chart-view-segment button {
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid #b9c7c0;
+  background: #fffdf8;
+  color: #1f4f3d;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chart-view-segment button:first-of-type { border-radius: 999px 0 0 999px; }
+.chart-view-segment button:last-of-type { border-radius: 0 999px 999px 0; }
+.chart-view-segment button + button { margin-left: -1px; }
+.chart-view-segment button[aria-pressed="true"] { background: #1f6f4f; border-color: #1f6f4f; color: #fffdf8; }
+.chart-view-segment button:focus-visible,
+.chart-view-switch input:focus-visible + .chart-view-switch-track { outline: 3px solid #558fb7; outline-offset: 2px; }
+.chart-view-switch { display: inline-flex; align-items: center; gap: 10px; font-size: .82rem; font-weight: 700; color: #1f4f3d; cursor: pointer; }
+.chart-view-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chart-view-switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: #c9d3ce;
+  transition: background .15s;
+}
+.chart-view-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fffdf8;
+  transition: transform .15s;
+}
+.chart-view-switch input:checked + .chart-view-switch-track { background: #1f6f4f; }
+.chart-view-switch input:checked + .chart-view-switch-track::after { transform: translateX(18px); }
+.chart-season-picker { min-width: 220px; }
+.chart-season-picker > summary { height: 38px; }
+@media (max-width: 560px) {
+  .chart-view-controls { display: grid; gap: 14px; }
+  .chart-season-picker { min-width: 0; width: 100%; }
+  .chart-view-segment { display: grid; grid-template-columns: repeat(var(--options, 2), minmax(0, 1fr)); width: 100%; }
+  .chart-view-segment button { padding: 7px 6px; }
+  .chart-view-label { grid-column: 1 / -1; margin: 0 0 6px; }
+  .chart-view-segment button { min-height: 44px; }
+}
+
+.chart-player-search {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 2px;
+}
+
+.chart-player-search > label {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.chart-player-search > div { display: flex; width: min(420px, 100%); gap: 7px; }
+.chart-player-search input { min-width: 0; flex: 1; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: #fff; }
+.chart-player-search button { padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--accent-deep); background: var(--surface); cursor: pointer; font-weight: 800; }
+
+.chart-color-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.chart-color-legend-copy {
+  display: grid;
+  gap: 1px;
+  min-width: min(290px, 42%);
+  color: var(--muted);
+  font-size: .75rem;
+  line-height: 1.35;
+}
+
+.chart-color-legend-copy strong {
+  color: var(--ink);
+  font-size: .69rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.chart-color-legend-copy small { color: var(--muted); font-size: .68rem; }
+
+.chart-color-scale { width: min(520px, 55%); }
+
+.chart-color-ramp {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(20px, 1fr));
+  height: 13px;
+  overflow: hidden;
+  border: 1px solid rgba(19, 41, 31, .18);
+  border-radius: 999px;
+}
+
+.chart-color-ramp span { min-width: 0; }
+
+.chart-color-values {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 4px;
+  color: var(--muted);
+  font-size: .66rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rankings-chart-empty {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+}
+
+.rankings-visual-chart .player-face-mark {
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 130ms ease, transform 130ms ease;
+}
+
+.rankings-visual-chart .player-face-back { opacity: 1; }
+.rankings-visual-chart .player-face-image { pointer-events: none; }
+.rankings-visual-chart .player-face-initials { fill: #2f4a3f; font-size: 9px; font-weight: 900; pointer-events: none; }
+.rankings-visual-chart .player-face-ring { fill: none; stroke: #fffdf8; stroke-width: 2; pointer-events: none; }
+.rankings-visual-chart .player-face-outline { fill: none; stroke: #4f6359; stroke-width: 1.1; pointer-events: none; }
+.rankings-visual-chart.has-mark-highlight .player-face-mark.is-muted { opacity: .12; }
+.rankings-visual-chart .player-face-mark.is-highlighted,
+.rankings-visual-chart .player-face-mark:hover,
+.rankings-visual-chart .player-face-mark:focus { opacity: 1; outline: none; transform: scale(1.22); }
+.rankings-visual-chart .player-face-mark.is-highlighted .player-face-ring,
+.rankings-visual-chart .player-face-mark:hover .player-face-ring,
+.rankings-visual-chart .player-face-mark:focus .player-face-ring { stroke: var(--ink); stroke-width: 4; }
+
+/* --- who leads each player type --------------------------------------------- */
+
+.rankings-visual-chart .lane-baseline {
+  stroke: var(--line);
+  stroke-width: 1.2;
+}
+
+.rankings-visual-chart .lane-label {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rankings-visual-chart .lane-count {
+  fill: var(--muted);
+  font-size: 10.5px;
+}
+
+.rankings-visual-chart .lane-median {
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  opacity: .55;
+}
+
+.rankings-visual-chart .lane-leader-label {
+  fill: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+  paint-order: stroke;
+  stroke: #fffdf8;
+  stroke-width: 3.5;
+  pointer-events: none;
+}
+
+.rankings-visual-chart .lane-mark .player-face-back { opacity: .82; }
+.rankings-visual-chart .lane-mark.is-lane-leader .player-face-back { opacity: 1; }
+.rankings-visual-chart .lane-badge text {
+  fill: #fff;
+  font-size: 9.5px;
+  font-weight: 900;
+}
+
+/* --- V11 player and team style maps ---------------------------------------- */
+
+.rankings-visual-chart .style-badge text {
+  fill: #fff;
+  font-size: 7.5px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.rankings-visual-chart .style-badge circle {
+  stroke: #fffdf8;
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+
+.rankings-visual-chart .style-region {
+  fill-opacity: .07;
+  stroke-opacity: .45;
+  stroke-width: 1.2;
+  stroke-dasharray: 5 5;
+  pointer-events: none;
+}
+
+.rankings-visual-chart .style-region-label {
+  paint-order: stroke;
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: none;
+  stroke: #fffdf8;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.rankings-visual-chart.has-style-selection .style-mark { opacity: .16; }
+.rankings-visual-chart.has-style-selection .style-mark.is-match-style { opacity: 1; }
+.rankings-visual-chart.has-style-selection .style-mark.is-selected-style { opacity: 1; }
+.rankings-visual-chart .style-mark.is-selected-style .player-face-ring {
+  stroke: var(--ink);
+  stroke-width: 4.5;
+}
+
+/* Hovering or focusing always wins over the dimming a selection applies. */
+.rankings-visual-chart.has-style-selection .style-mark.is-highlighted,
+.rankings-visual-chart.has-style-selection .style-mark:hover,
+.rankings-visual-chart.has-style-selection .style-mark:focus { opacity: 1; }
+
+.style-legend-shell {
+  margin: 10px 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.style-legend-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.style-legend-summary::-webkit-details-marker {
+  display: none;
+}
+
+.style-legend-summary:focus-visible {
+  border-radius: 12px;
+  outline: 3px solid rgb(31 107 80 / 24%);
+  outline-offset: 2px;
+}
+
+.style-legend-summary-heading {
+  color: var(--accent-deep);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.style-legend-summary-heading::after {
+  content: " ⌄";
+}
+
+.style-legend-shell[open] .style-legend-summary-heading::after {
+  content: " ⌃";
+}
+
+.style-legend-summary-hint {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.style-legend-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.style-legend-chips .style-chip.is-off {
+  opacity: 0.4;
+}
+
+.style-legend {
+  display: grid;
+  gap: 5px;
+  padding: 0 12px 12px;
+}
+
+.style-legend-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.style-legend-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.style-legend-toggle:hover,
+.style-legend-toggle:focus-visible { border-color: var(--line); background: var(--surface); }
+.style-legend-toggle > span { display: grid; min-width: 0; gap: 1px; }
+.style-legend-toggle strong { font-size: .8rem; }
+.style-legend-toggle small { color: var(--muted); font-size: .68rem; line-height: 1.35; }
+.style-legend-toggle em {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: .68rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.style-legend-swatch {
+  display: grid;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  align-content: center;
+  justify-content: center;
+  border: 1px solid rgb(19 41 31 / 18%);
+  border-radius: 999px;
+  background: var(--style-color);
+  color: #fff;
+  font-size: .62rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.style-legend-row.is-off .style-legend-toggle { opacity: .42; }
+.style-legend-row.is-off .style-legend-swatch { background: transparent; color: var(--muted); }
+
+.style-legend-only,
+.style-legend-reset {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--accent-deep);
+  cursor: pointer;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.style-legend-reset { justify-self: start; margin-top: 3px; }
+
+.style-chip {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--style-color, var(--muted)) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--style-color, var(--muted)) 13%, transparent);
+  color: var(--ink);
+  font-size: .66rem;
+  font-weight: 800;
+}
+
+@media (width <= 620px) {
+  .style-legend-toggle em { display: none; }
+  .style-legend-summary { gap: 6px 8px; }
+  .style-legend-chips .style-chip { font-size: .62rem; }
+  .chart-panel > summary.chart-panel-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .chart-panel-summary-action { align-self: flex-start; }
+  .chart-panel-body { margin-top: 14px; padding-top: 14px; }
+}
+
+@media print {
+  .chart-panel > summary.chart-panel-summary { list-style: none; }
+  .chart-panel-summary-action { display: none; }
+  .chart-panel-body { border-top: 1px solid var(--line); }
+}
+
+.rankings-visual-chart .visual-bubble {
+  stroke: var(--surface);
+  stroke-width: 2;
+  transition: opacity 120ms ease, stroke-width 120ms ease;
+}
+
+.rankings-visual-chart a:hover .visual-bubble,
+.rankings-visual-chart a:focus .visual-bubble {
+  opacity: 1;
+  stroke: var(--ink);
+  stroke-width: 4;
+}
+
+.rankings-visual-chart .slope-series line {
+  stroke-width: 2.5;
+  opacity: 0.7;
+}
+
+.rankings-visual-chart .slope-series:hover line,
+.rankings-visual-chart .slope-series:focus line {
+  stroke-width: 6;
+  opacity: 1;
+}
+
+.rankings-visual-fallback {
+  margin-top: 10px;
+}
+
+.rankings-visual-fallback details { border-top: 1px solid var(--line); }
+.rankings-visual-fallback summary { padding: 12px 0; color: var(--accent-deep); cursor: pointer; font-size: .76rem; font-weight: 800; }
+.rankings-visual-fallback details[open] { max-height: 340px; overflow: auto; }
+
+.rankings-visual-fallback table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.rankings-visual-fallback th,
+.rankings-visual-fallback td {
+  padding: 9px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+
+.rankings-visual-fallback th:first-child {
+  text-align: left;
+}
+
+@media (max-width: 760px) {
+  .rankings-view-switcher {
+    width: 100%;
+    border-radius: 14px;
+  }
+
+  .rankings-view-switcher button {
+    flex: 1 1 42%;
+  }
+
+  .rankings-visual-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rankings-visual-controls {
+    width: 100%;
+  }
+
+  .rankings-visual-controls label,
+  .rankings-visual-controls select {
+    width: 100%;
+  }
+
+  .rankings-chart-hover { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .chart-player-search { align-items: stretch; flex-direction: column; }
+  .chart-player-search > div { width: 100%; }
+  .chart-color-legend { align-items: stretch; flex-direction: column; gap: 9px; }
+  .chart-color-legend-copy,
+  .chart-color-scale { width: 100%; min-width: 0; }
 }
 
 .definition {
@@ -1534,10 +2507,6 @@ tbody tr:hover .player-cell {
   box-shadow: var(--shadow);
 }
 
-.trends-heading {
-  margin-bottom: 16px;
-}
-
 .trend-toolbar {
   display: grid;
   grid-template-columns: minmax(360px, 1.15fr) minmax(190px, 0.58fr);
@@ -1575,12 +2544,13 @@ tbody tr:hover .player-cell {
 }
 
 .lift-group-segmented {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .trend-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 240px;
+  align-items: start;
   gap: 16px;
 }
 
@@ -1823,6 +2793,7 @@ body.chart-expanded {
 
 .trend-legend {
   display: grid;
+  align-self: start;
   min-width: 0;
   min-height: 0;
   padding: 15px 10px 10px;
@@ -2645,6 +3616,74 @@ body.chart-expanded {
   display: none;
 }
 
+.experiment-run-progress {
+  width: min(680px, 100%);
+  margin-top: 16px;
+  padding: 13px 14px 12px;
+  border: 1px solid rgb(31 107 80 / 24%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 72%);
+}
+
+.experiment-run-progress[hidden] {
+  display: none;
+}
+
+.experiment-run-progress-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.experiment-run-progress-heading strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.experiment-run-progress-heading output {
+  color: var(--accent-deep);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.experiment-run-progress progress {
+  display: block;
+  width: 100%;
+  height: 9px;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(31 107 80 / 13%);
+  appearance: none;
+}
+
+.experiment-run-progress progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: rgb(31 107 80 / 13%);
+}
+
+.experiment-run-progress progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+  transition: width 160ms ease-out;
+}
+
+.experiment-run-progress progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+}
+
+.experiment-review .experiment-run-progress > p {
+  max-width: none;
+  margin-top: 8px;
+  font-size: 0.69rem;
+  line-height: 1.4;
+}
+
 .experiment-run-actions {
   display: flex;
   flex: 0 0 auto;
@@ -2799,6 +3838,18 @@ body.chart-expanded {
     padding: 30px 0 44px;
   }
 
+  .site-nav {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .site-nav a {
+    flex: 0 0 auto;
+  }
+
   .hero,
   .results-heading {
     align-items: stretch;
@@ -2822,13 +3873,21 @@ body.chart-expanded {
     flex-direction: column;
   }
 
+  .experiment-run-progress-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
   .share-status {
     text-align: left;
   }
 
+  /* Stacked under the heading, the button lines up with it rather than
+     drifting to the far edge of the card. */
   .ranking-share-control {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
     margin-left: 0;
   }
 
@@ -2922,10 +3981,6 @@ body.chart-expanded {
     gap: 14px;
   }
 
-  .high-value-records-summary {
-    align-items: flex-start;
-    margin-left: 0;
-  }
 
   .results-meta {
     text-align: left;
@@ -2961,18 +4016,21 @@ body.chart-expanded {
   }
 
   .top-games-toolbar {
-    grid-template-columns: 1fr 1fr;
-    padding: 12px;
-  }
-
-  .high-value-records-toolbar {
     grid-template-columns: 1fr;
     padding: 12px;
   }
 
-  .top-games-outcome-control {
+  .high-value-records-toolbar {
+    padding: 12px;
+  }
+
+  .season-wins-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .top-games-outcome-control,
+  .top-games-schedule-control {
     grid-column: 1 / -1;
-    grid-row: 2;
   }
 
   .table-wrap {
@@ -2982,7 +4040,9 @@ body.chart-expanded {
   }
 
   .rankings-table-wrap {
-    max-height: none;
+    max-height: min(85svh, 900px);
+    overflow: auto;
+    border-radius: 12px;
   }
 
   table {
@@ -2992,13 +4052,7 @@ body.chart-expanded {
   }
 
   .rankings-table,
-  .rankings-table.original-rankings,
-  .rankings-table.record-columns-expanded,
-  .rankings-table.original-rankings.record-columns-expanded,
-  .rankings-table.context-columns-expanded,
-  .rankings-table.original-rankings.context-columns-expanded,
-  .rankings-table.original-rankings.record-columns-expanded.context-columns-expanded,
-  .rankings-table.record-columns-expanded.context-columns-expanded {
+  .rankings-table.original-rankings {
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -3013,11 +4067,8 @@ body.chart-expanded {
   }
 
   .season-wins-toolbar {
+    grid-template-columns: 1fr;
     padding: 10px;
-  }
-
-  .season-wins-phase-control {
-    width: 100%;
   }
 
   .season-wins-table tbody tr:not(.loading-row, .empty-row) {
@@ -3066,6 +4117,25 @@ body.chart-expanded {
     white-space: nowrap;
   }
 
+  /* Keep the accessible header in its one-pixel clipping box. Desktop
+     headings are sticky; without this mobile override those positioned
+     descendants escape the clipped thead and widen the document. */
+  thead tr,
+  thead th,
+  thead button {
+    position: static !important;
+  }
+
+  thead tr,
+  thead th {
+    display: block;
+    width: 1px !important;
+    min-width: 0 !important;
+    max-width: 1px !important;
+    padding: 0;
+    overflow: hidden;
+  }
+
   tbody {
     display: grid;
     gap: 12px;
@@ -3094,37 +4164,14 @@ body.chart-expanded {
     text-align: left;
   }
 
-  .rankings-table:not(.record-columns-expanded)
-    tbody
-    tr:not(.loading-row, .empty-row)
-    .record-column,
-  .original-rankings:not(.context-columns-expanded)
-    tbody
-    tr:not(.loading-row, .empty-row)
-    .context-expanded-column,
-  .original-rankings.context-columns-expanded
-    tbody
-    tr:not(.loading-row, .empty-row)
-    .context-collapsed-column {
-    display: none;
-  }
-
-  .rankings-table.record-columns-expanded
-    tbody
-    tr:not(.loading-row, .empty-row)
-    .record-column,
   .original-rankings
     tbody
     tr:not(.loading-row, .empty-row)
     .context-raw-column,
-  .original-rankings:not(.context-columns-expanded)
+  .original-rankings
     tbody
     tr:not(.loading-row, .empty-row)
-    .context-collapsed-column,
-  .original-rankings.context-columns-expanded
-    tbody
-    tr:not(.loading-row, .empty-row)
-    .context-expanded-column {
+    .context-collapsed-column {
     display: flex;
   }
 
@@ -3218,10 +4265,6 @@ body.chart-expanded {
     box-shadow: inset 3px 0 #6e9d55;
   }
 
-  tbody tr:not(.loading-row, .empty-row) .category-other-cell {
-    box-shadow: inset 3px 0 #9a9285;
-  }
-
   tbody tr:not(.loading-row, .empty-row) .context-raw-cell {
     box-shadow: inset 3px 0 #56616e;
   }
@@ -3244,10 +4287,6 @@ body.chart-expanded {
 
   tbody tr:not(.loading-row, .empty-row) .total-cell {
     background: rgb(215 255 84 / 12%);
-  }
-
-  tbody tr:not(.loading-row, .empty-row) .comparison-cell {
-    min-width: 0;
   }
 
   .top-games-table tbody tr:not(.loading-row, .empty-row) .game-season-cell,
@@ -3460,12 +4499,8 @@ body.chart-expanded {
   }
 
   .top-games-outcome-control,
-  .top-games-limit-control {
+  .top-games-schedule-control {
     grid-column: 1;
-  }
-
-  .top-games-outcome-control {
-    grid-row: auto;
   }
 
   .trend-legend-list {
@@ -3504,7 +4539,8 @@ body.chart-expanded {
   }
 
   .context-summary,
-  .context-game-grid {
+  .context-game-grid,
+  .context-factor-list {
     grid-template-columns: 1fr;
   }
 
@@ -3521,4 +4557,949 @@ body.chart-expanded {
   .context-game-grid strong {
     text-align: left;
   }
+}
+
+/* --- a chart that draws only its best players as faces ----------------------- */
+/*
+ * A dot is a player the chart could not fit a face for, so it is quiet until it
+ * is hovered or focused, and the card beside the chart then carries the face
+ * and the name.
+ */
+
+.rankings-visual-chart .player-face-mark.is-dot-mark { opacity: .62; }
+
+.rankings-visual-chart .player-face-mark.is-dot-mark .player-face-ring {
+  stroke-width: 1;
+}
+
+.rankings-visual-chart.has-mark-highlight .player-face-mark.is-dot-mark.is-highlighted,
+.rankings-visual-chart .player-face-mark.is-dot-mark:hover,
+.rankings-visual-chart .player-face-mark.is-dot-mark:focus { opacity: 1; }
+
+.rankings-chart-hover .chart-hover-face {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-soft, #f3f3ef);
+  object-fit: cover;
+  object-position: top center;
+}
+
+@media (max-width: 720px) {
+  .rankings-chart-hover .chart-hover-face { width: 32px; height: 32px; }
+}
+
+/*
+ * The season room's "Highest individual games" table carries the entity pages'
+ * 900 px minimum, but the rule that lets such a table scroll inside its own
+ * region is scoped to `.entity-shell`, which the season room is not, so the
+ * table pushed the whole page sideways on a phone. (Found on 2026-09-21 while
+ * checking the season room at 375 px; the table itself is unchanged.)
+ */
+@media (max-width: 720px) {
+  .seasons-shell .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ===========================================================================
+ * The phone pass (2026-09-21) — Package S3
+ * ---------------------------------------------------------------------------
+ * One place for the rules that make the six public tabs work on a phone,
+ * rather than a patch per page. Everything here is scoped to a narrow
+ * viewport or a coarse pointer, so the desktop layout is untouched.
+ *
+ * Four shared patterns, in order:
+ *   1. one tap-target size          — every control a thumb has to hit
+ *   2. one readable floor           — no visible words under 11 px
+ *   3. one table pattern            — a wide table scrolls inside its own
+ *                                     region, headers and all, instead of
+ *                                     pushing the page sideways or losing its
+ *                                     column names
+ *   4. one dialog size              — a dialog fits the viewport and scrolls
+ *                                     inside itself
+ * =========================================================================== */
+
+/* --- 1. one tap-target size ------------------------------------------------ */
+/*
+ * 40 px in the smaller dimension, with the spacing the controls already carry.
+ * `pointer: coarse` is in the query as well as the width so a tablet held in
+ * the hand gets the same targets as a phone.
+ */
+@media (max-width: 760px), (pointer: coarse) {
+  .site-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+
+  /* A segmented control's target is its label, not the box around it. */
+  .segmented,
+  .season-wins-segmented {
+    height: 52px;
+  }
+
+  .season-ranking-option {
+    min-height: 44px;
+  }
+
+  .season-picker-apply,
+  .share-ranking-card-action,
+  .chart-player-search input,
+  .chart-player-search button,
+  .mobile-sort-controls select,
+  .table-pagination button {
+    min-height: 44px;
+  }
+
+  .style-legend-only,
+  .style-legend-reset,
+  .style-legend-toggle,
+  .legend-player,
+  .chart-legend-item,
+  .entity-pill,
+  .game-anatomy-button,
+  .table-sort,
+  .profile-compare-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+
+  /* "Compare · Context" under a player's name in the ranking card. */
+  .compare-player-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding-inline: 2px;
+  }
+
+  .player-name.player-profile-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+
+  /*
+   * A disclosure is a control. `min-height` alone, because these summaries
+   * carry their own grid, marker and fit-content layouts and a display change
+   * would rearrange them.
+   */
+  .shell summary {
+    min-height: 44px;
+  }
+
+  .radar-numbers > summary,
+  .overlay-radar-numbers > summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 16px;
+  }
+
+  /*
+   * Text fields and selects are 16 px so iOS does not zoom the page when one
+   * takes focus. Anything smaller is a zoom the reader then has to undo.
+   */
+  .shell input,
+  .shell select,
+  .shell textarea {
+    font-size: 16px;
+  }
+}
+
+/* --- 2. one readable floor ------------------------------------------------- */
+/*
+ * Measured at 375 px: these are every class that rendered visible words under
+ * 11 px. 0.72rem is 11.5 px, which is the smallest size the site's face stays
+ * legible at on a phone.
+ */
+@media (max-width: 760px), (pointer: coarse) {
+  .shell small,
+  .shell legend,
+  .compare-player-link,
+  .player-row-actions,
+  .category-percent,
+  .category-value,
+  .rate-context,
+  .player-teams,
+  .season-picker-status,
+  .style-chip,
+  .style-legend-summary-hint,
+  .chart-color-legend-copy small,
+  .chart-color-values,
+  .profile-source-unit,
+  .radar-rings,
+  .similarity-season,
+  .overlay-type-chip,
+  .overlay-unit,
+  .overlay-radar-table td small,
+  .overlay-radar-table td.overlay-missing,
+  .trend-legend-summary,
+  #legend-summary,
+  #lift-legend-summary {
+    font-size: 0.72rem;
+  }
+
+  .overlay-radar-table table {
+    font-size: 0.78rem;
+  }
+}
+
+/* --- 3. one table pattern -------------------------------------------------- */
+/*
+ * The shared card layout above turns a generic table into labelled cards, and
+ * that is right for exactly one kind of table: a ranking row whose cells carry
+ * `data-label`. Every other table on the site — a career, a roster, a radar's
+ * numbers, a worked example, a constants table — has neither those labels nor
+ * that shape, so on a phone it became an unlabelled grid of numbers.
+ *
+ * These four shells therefore keep real tables and scroll them sideways inside
+ * their own region. The selectors mirror the card rules' own shape because
+ * they have to outrank them, and `thead tr` / `thead th` are restored as well
+ * as `thead`: restoring only the `thead` left a 150–240 px blank band above
+ * every entity table with its column names collapsed into one pixel.
+ * (Measured on the player page at 375 px on 2026-09-21: 16 tables.)
+ */
+@media (max-width: 760px) {
+  .entity-shell .table-wrap,
+  .seasons-shell .table-wrap,
+  .compare-shell .table-wrap,
+  .methodology-shell .method-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
+  }
+
+  .entity-shell table,
+  .seasons-shell .table-wrap table,
+  .compare-shell .table-wrap table,
+  .methodology-shell .method-table-wrap table {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .entity-shell thead,
+  .seasons-shell .table-wrap thead,
+  .compare-shell .table-wrap thead,
+  .methodology-shell .method-table-wrap thead {
+    position: static;
+    display: table-header-group;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
+  .entity-shell thead tr,
+  .seasons-shell .table-wrap thead tr,
+  .compare-shell .table-wrap thead tr,
+  .methodology-shell .method-table-wrap thead tr {
+    display: table-row;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    overflow: visible;
+  }
+
+  .entity-shell thead th,
+  .seasons-shell .table-wrap thead th,
+  .compare-shell .table-wrap thead th,
+  .methodology-shell .method-table-wrap thead th {
+    display: table-cell;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 10px 12px;
+    overflow: visible;
+    white-space: nowrap;
+  }
+
+  .seasons-shell .table-wrap tbody,
+  .compare-shell .table-wrap tbody,
+  .methodology-shell .method-table-wrap tbody {
+    display: table-row-group;
+    gap: 0;
+  }
+
+  .seasons-shell .table-wrap tbody tr:not(.loading-row, .empty-row),
+  .compare-shell .table-wrap tbody tr:not(.loading-row, .empty-row),
+  .methodology-shell .method-table-wrap tbody tr:not(.loading-row, .empty-row) {
+    position: static;
+    display: table-row;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .seasons-shell .table-wrap tbody tr:not(.loading-row, .empty-row) td,
+  .compare-shell .table-wrap tbody tr:not(.loading-row, .empty-row) td,
+  .methodology-shell .method-table-wrap tbody tr:not(.loading-row, .empty-row) td {
+    position: static;
+    display: table-cell;
+    min-width: auto;
+    padding: 11px 12px;
+    border-top: 1px solid var(--line);
+    background: transparent;
+    text-align: left;
+  }
+
+  .seasons-shell .table-wrap tbody tr:not(.loading-row, .empty-row) td.numeric,
+  .compare-shell .table-wrap tbody tr:not(.loading-row, .empty-row) td.numeric,
+  .methodology-shell .method-table-wrap tbody tr:not(.loading-row, .empty-row) td.numeric {
+    text-align: right;
+  }
+
+  .seasons-shell .table-wrap tbody tr:not(.loading-row, .empty-row) td::before,
+  .compare-shell .table-wrap tbody tr:not(.loading-row, .empty-row) td::before,
+  .methodology-shell .method-table-wrap tbody tr:not(.loading-row, .empty-row) td::before {
+    content: none;
+  }
+}
+
+/* --- 4. one dialog size ---------------------------------------------------- */
+/*
+ * A dialog fits inside the viewport with a gutter, scrolls inside itself, and
+ * never makes the page behind it scroll sideways.
+ */
+@media (max-width: 760px) {
+  .shell ~ dialog,
+  dialog {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  dialog::backdrop {
+    background: rgb(19 37 31 / 45%);
+  }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  /* Close, copy, download, previous and next inside a dialog. */
+  dialog button,
+  dialog a[href],
+  dialog select {
+    min-height: 44px;
+  }
+}
+
+/* --- the context chart has a narrow twin ----------------------------------- */
+/*
+ * The six context amounts are drawn twice — once for a wide screen and once
+ * for a phone, where the same chart in a 620-unit box shrank to 70% and put
+ * its amounts on screen at under 6 px. Only one is ever displayed, so nothing
+ * is drawn twice for a reader and no resize listener has to re-render it.
+ */
+.context-bars.is-narrow { display: none; }
+
+@media (max-width: 760px) {
+  .context-bars.is-wide { display: none; }
+  .context-bars.is-narrow { display: block; }
+}
+
+/* --- the floor and the targets, where a more specific rule set them --------- */
+/*
+ * A second pass, measured on the rebuilt pages. Each selector here is as
+ * specific as the rule it has to outrank, which is why they are not simply in
+ * the lists above.
+ */
+@media (max-width: 760px), (pointer: coarse) {
+  .style-legend-chips .style-chip,
+  .style-legend-swatch,
+  .style-legend-only,
+  .style-legend-reset,
+  .season-wins-offense-cell .category-percent,
+  .season-wins-defense-cell .category-percent,
+  .top-games-table .game-team-cell span,
+  .top-games-table .game-opponent-cell span,
+  .game-team-cell span,
+  .game-opponent-cell span {
+    font-size: 0.72rem;
+  }
+
+  .season-picker-shortcuts button,
+  .mobile-sort-controls button {
+    min-height: 44px;
+  }
+
+  /* A team's three letters under a player's name, and a name in a card. */
+  .player-row-actions .player-teams a,
+  .player-cell .player-name,
+  th > a,
+  .game-anatomy-button {
+    display: inline-flex;
+    align-items: center;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .player-row-actions .player-teams a,
+  th > a {
+    justify-content: center;
+  }
+
+  .game-anatomy-button {
+    justify-content: center;
+  }
+}
+
+/* --- the tablet width, where neither the phone nor the desktop rules ran ---- */
+/*
+ * Two things pushed the rankings page sideways at 768 px — above the phone
+ * breakpoint, below the width the desktop layout was drawn for.
+ */
+@media (max-width: 1150px) {
+  /*
+   * The seasons panel is 330 px hung from its control's left edge. In a
+   * four-column control row that edge is far enough right that the panel left
+   * the viewport. Hanging it from the control's right edge keeps it on screen
+   * and looks the same.
+   */
+  .season-picker-panel {
+    right: 0;
+    left: auto;
+  }
+}
+
+/*
+ * A chart's accessible table alternative is three or four columns, and it was
+ * inheriting the ranking table's 2,180 px floor: at every width below that it
+ * was cut off inside its own disclosure with nothing to scroll. Found at
+ * 768 px on 2026-09-21; the same was true on a narrow desktop window.
+ */
+.rankings-visual-fallback table,
+.chart-table-fallback table { min-width: 0; }
+
+.rankings-visual-fallback > details { max-width: 100%; overflow-x: auto; }
+
+@media (max-width: 900px) {
+  /*
+   * The single-game leaderboard's toolbar asked for 160 + 180 + 300 + 120 px
+   * of columns, which is 824 px before gaps and padding.
+   */
+  .top-games-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .top-games-outcome-control,
+  .top-games-schedule-control {
+    grid-column: auto;
+  }
+}
+
+
+/* Compact phone ranking cards; keep the desktop table and its audit columns. */
+.ranking-headshot { display: none; }
+
+#mobile-rankings-toggle { display: none; }
+
+@media (max-width: 760px) {
+  .rankings-section-title { padding: 0; border-bottom: 1px solid var(--accent-deep); border-radius: 14px; }
+  .rankings-section-title:has([aria-expanded="true"]) { border-radius: 14px 14px 0 0; border-bottom: 0; }
+  .rankings-desktop-title { display: none; }
+  #mobile-rankings-toggle { display: grid; width: 100%; gap: 9px; padding: 18px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  #mobile-rankings-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: -4px; border-radius: 12px; }
+  .rankings-toggle-action { font-family: Inter, sans-serif; font-size: .72rem; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+  .results.is-mobile-collapsed { display: none; }
+  .preview-career-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+  .mobile-preview .preview-career-chip { border-color: var(--career-color); color: var(--career-color); background: #214337; padding: 10px; line-height: 1.3; text-align: left; }
+  .preview-career-chip:disabled { cursor: default; }
+  .preview-career-add { display: flex; gap: 8px; align-items: flex-end; }
+  .preview-career-add label { flex: 1; min-width: 0; }
+  .preview-career-add button { flex-shrink: 0; color: #17382e; background: #d7ff84; }
+  .preview-career-add button:disabled { opacity: .5; cursor: default; }
+  .preview-career-status { margin: 0; font-size: .76rem; line-height: 1.4; }
+  .preview-career-season { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; margin: 18px 0 10px; }
+  .preview-career-season strong { font-size: 1.4rem; }
+  .preview-career-season > span { font-size: .76rem; }
+  .preview-career-value { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0 9px 10px; border-left: 3px solid var(--career-color); margin-bottom: 7px; background: #214337; }
+  .preview-career-value > span { min-width: 0; font-size: .84rem; font-weight: 650; }
+  .preview-career-value small { display: block; min-height: 1em; margin-top: 4px; font-size: .68rem; font-weight: 400; line-height: 1.4; }
+  .preview-career-value strong { padding-right: 10px; flex-shrink: 0; color: var(--career-color); font-size: 1.12rem; }
+  .preview-comparison-line { stroke-width: 2.5; stroke-linejoin: round; }
+  .preview-season-guide { stroke: #b0c7bb; stroke-width: 1; stroke-dasharray: 3 4; }
+}
+
+.mobile-preview,
+#mobile-trend-preview, #mobile-lift-preview { display: none; }
+
+@media (max-width: 760px) {
+  .mobile-preview { display: block; min-width: 0; padding: 14px; border-radius: 14px; }
+  .has-mobile-preview > :not(.mobile-preview) { display: none; }
+  #mobile-trend-preview, #mobile-lift-preview { display: block; }
+  #mobile-trend-preview + .trend-layout, #mobile-lift-preview + .trend-layout { display: none; }
+  .mobile-preview-heading { display: flex; gap: 10px; margin-bottom: 18px; align-items: flex-start; }
+  .mobile-preview-heading strong { display: block; font-size: 1.1rem; line-height: 1.25; }
+  .mobile-preview-heading p { margin: 6px 0 0; font-size: .8rem; line-height: 1.5; }
+  .mobile-preview-badge { display: grid; place-items: center; flex: 0 0 30px; height: 30px; border: 1px solid currentColor; border-radius: 9px; font-weight: 800; }
+  .mobile-preview-picker { display: grid; gap: 10px; margin-bottom: 12px; }
+  .mobile-preview label { display: grid; gap: 6px; font-size: .78rem; font-weight: 700; min-width: 0; }
+  .mobile-preview :is(input[type="search"],select) { display: block; min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid #bfcac5; border-radius: 9px; color: #13251f; background: #fffdf8; font-size: 16px; }
+  .mobile-preview button { min-height: 44px; padding: 10px; border: 1px solid #c3cec8; border-radius: 9px; font: inherit; font-size: .8rem; cursor: pointer; }
+  .mobile-preview :is(button,input,select,a):focus-visible { outline: 3px solid #558fb7; outline-offset: 3px; }
+  .mobile-preview-search-status:empty { display: none; }
+  .mobile-preview-search-status { margin: 0; font-size: .8rem; }
+  .mobile-preview svg { display: block; width: 100%; height: auto; min-height: 0; overflow: visible; touch-action: pan-y; }
+  .mobile-preview svg text { font-family: inherit; font-size: 12px; fill: currentColor; }
+  .mobile-preview .preview-axis-title { font-size: 12px; font-weight: 700; }
+  .mobile-preview .preview-grid { stroke: #ccd8df; stroke-width: 1; }
+  .mobile-preview .preview-zero { stroke: #708698; stroke-width: 1; stroke-dasharray: 3 3; }
+  .mobile-preview .preview-footnote { margin: 14px 0 0; font-size: .75rem; line-height: 1.5; }
+
+  /* B: quiet overview, direct selection, persistent values below the map. */
+  .mobile-preview-map { background: #edf4f8; color: #233b4e; }
+  .mobile-preview-map > svg { cursor: crosshair; }
+  .preview-map-dot { fill: #5187a6; opacity: .48; }
+  .preview-map-dot.is-selected { fill: #163f59; opacity: 1; }
+  .preview-map-selection { fill: none; stroke: #173e58; stroke-width: 2.5; }
+  .mobile-preview-detail { padding: 14px; margin-top: 10px; border-radius: 10px; background: #fff; min-height: 150px; }
+  .mobile-preview-detail > a { display: inline-block; padding-block: 6px; color: inherit; font-weight: 800; font-size: 1rem; }
+  .preview-value-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 8px 0; }
+  .preview-value-pair span { font-size: .75rem; }
+  .preview-value-pair strong { display: block; margin-top: 4px; font-size: 1.25rem; }
+  .mobile-preview-detail small { display: block; font-size: .72rem; line-height: 1.5; }
+
+  /* A: a single career and a large, touch-controlled numeric readout. */
+  .mobile-preview-explorer { background: #17382e; color: #eff9ed; }
+  .mobile-preview-explorer .preview-grid { stroke: #466459; }
+  .preview-trend-readout { min-height: 118px; padding-top: 8px; }
+  .preview-trend-readout > span { display: block; font-size: .83rem; line-height: 1.5; }
+  .preview-trend-readout > strong { display: block; margin: 7px 0; font-size: 2.3rem; letter-spacing: -.04em; line-height: 1.1; color: #d7ff84; }
+  .preview-trend-readout small { font-size: .85rem; letter-spacing: 0; }
+  .preview-trend-readout p { margin: 0; font-size: .76rem; line-height: 1.5; }
+  .preview-career-line { stroke: #d7ff84; stroke-width: 3; stroke-linejoin: round; }
+  .preview-career-point { fill: #d7ff84; }
+  .preview-career-selection { fill: #17382e; stroke: #d7ff84; stroke-width: 3; }
+  .preview-scrubber input { width: 100%; min-width: 0; height: 44px; accent-color: #d7ff84; touch-action: pan-y; }
+  .preview-season-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .preview-season-buttons button { color: #eff9ed; background: #294c40; border-color: #688479; }
+  .preview-season-buttons button:disabled { opacity: .45; cursor: default; }
+
+  /* C: a readable, shared-scale chart for each named player. */
+  .mobile-preview-editorial { background: #f8f2e7; color: #342d25; }
+  .mobile-preview-editorial .mobile-preview-heading strong { font-family: Georgia,serif; font-size: 1.3rem; }
+  .preview-comparison-key { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 4px; font-size: .73rem; }
+  .preview-comparison-key span { display: inline-flex; align-items: center; gap: 5px; }
+  .preview-comparison-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+  .preview-key-regular { background: #f8f2e7; border: 2px solid #82705c; }
+  .preview-key-post { background: #225c53; }
+  .preview-comparison-row { padding: 16px 0; border-bottom: 1px solid #d9cebc; }
+  .preview-comparison-row > div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .preview-comparison-row a { color: inherit; font-size: .86rem; line-height: 1.4; font-weight: 750; }
+  .preview-comparison-row strong { flex-shrink: 0; font-size: .86rem; }
+  .preview-comparison-row p { margin: 0; font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .preview-comparison-row p span { font-size: .72rem; }
+  .preview-comparison-row svg { margin: 5px 0; }
+  .preview-positive { color: #225c53; }
+  .preview-negative { color: #9c4034; }
+  .preview-rail { stroke: #ded3c3; stroke-width: 2; }
+  .preview-connector { stroke: #87765f; stroke-width: 3; }
+  .preview-regular-dot { fill: #f8f2e7; stroke: #82705c; stroke-width: 2; }
+  .preview-post-dot { fill: #225c53; }
+  .preview-show-more { margin-top: 14px; width: 100%; background: #fffdf8; color: #342d25; }
+}
+
+@media (max-width: 760px) {
+  .rankings-table tbody tr:not(.loading-row, .empty-row) td:not(
+    .rank-number, .player-cell, [data-label="Wins VC"], [data-label="VC"],
+    .rate-cell, .category-offense-cell, .category-defense-cell
+  ) {
+    display: none;
+  }
+
+  .rankings-table .view-context,
+  .rankings-table .ranking-context-separator {
+    display: none;
+  }
+
+  .rankings-table tbody tr:not(.loading-row, .empty-row) .rate-cell {
+    grid-column: span 2;
+    background: rgb(215 255 84 / 12%);
+  }
+
+  .rankings-table tbody tr:not(.loading-row, .empty-row) .rate-cell::before {
+    content: "VC/G";
+  }
+
+  .rankings-table tbody tr:not(.loading-row, .empty-row) :is(
+    .category-offense-cell, .category-defense-cell
+  ) {
+    grid-column: span 3;
+  }
+
+  .rankings-table tbody tr:not(.loading-row, .empty-row) .player-cell {
+    position: relative;
+    left: auto;
+    padding-left: 64px;
+  }
+
+  .ranking-headshot {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    display: block;
+    width: 48px;
+    height: 48px;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    overflow: hidden;
+    background: #ebe9df;
+  }
+
+  .ranking-headshot img {
+    display: block;
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+  }
+
+  .ranking-headshot img[hidden] { display: none; }
+
+  .top-games-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .top-games-schedule-control,
+  .top-games-outcome-control { grid-column: 1 / -1; }
+  .top-games-season-word { display: none; }
+  .top-games-table tbody tr:not(.loading-row, .empty-row) td[data-label="Build"] {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .preview-career-picker { margin: 16px 0; border: 1px solid #77968b; border-radius: 10px; padding: 10px; }
+  .preview-career-picker summary { cursor: pointer; min-height: 44px; align-content: center; font-size: .9rem; font-weight: 700; }
+  .preview-career-count { font-size: .75rem; font-weight: 400; margin-left: 6px; }
+  .preview-career-picker .mobile-preview-picker { margin-top: 10px; }
+  .preview-career-options { max-height: 280px; overflow-y: auto; }
+  .mobile-preview .preview-career-option { display: flex; align-items: center; gap: 10px; min-height: 44px; border-bottom: 1px solid #36584b; border-left: 3px solid var(--career-color); padding: 6px 8px; }
+  .preview-career-option input { width: 20px; height: 20px; flex: 0 0 20px; accent-color: #d7ff84; }
+  .preview-career-readout { max-height: 340px; overflow-y: auto; margin-top: 12px; }
+  .preview-career-season { position: sticky; top: 0; background: #17382e; padding: 8px 0; margin-top: 0; }
+}
+
+@media (max-width: 760px) {
+  .mobile-preview button.preview-career-value { width: 100%; text-align: left; border: 1px solid transparent; border-left: 3px solid var(--career-color); border-radius: 4px; color: inherit; background: #214337; padding: 9px 0 9px 10px; }
+  .mobile-preview button.preview-career-value[aria-pressed="true"] { border-color: var(--career-color); background: #2d5546; }
+}
+
+@media (max-width: 760px) {
+  .preview-map-dot { cursor: pointer; }
+  .preview-map-dot:focus-visible { outline: none; stroke: #163f59; stroke-width: 3; opacity: 1; }
+  .preview-map-name { cursor: pointer; }
+  .preview-map-name line { stroke: #8aa8b8; stroke-width: 1; pointer-events: none; }
+  .preview-map-name rect { fill: #edf4f8; fill-opacity: .94; }
+  .mobile-preview .preview-map-name text { font-size: 11px; font-weight: 600; }
+  .preview-map-name.is-selected rect { fill: #163f59; fill-opacity: 1; }
+  .mobile-preview .preview-map-name.is-selected text { fill: #fff; font-weight: 750; }
+}
+
+@media (max-width: 760px) {
+  .preview-map-player { cursor: pointer; }
+  .preview-map-face-back { fill: #e3e8e9; }
+  .preview-map-face-ring { fill: none; stroke: #8daab9; stroke-width: 1.3; }
+  .preview-map-player.is-selected .preview-map-face-ring,
+  .preview-map-player:focus-visible .preview-map-face-ring { stroke: #163f59; stroke-width: 2.5; }
+  .preview-map-player:focus-visible { outline: none; }
+  .mobile-preview .preview-map-initials { font-size: 11px; font-weight: 750; fill: #163f59; }
+}
+
+@media (max-width: 760px) {
+  .rankings-table tbody { gap: 8px; }
+  .rankings-table tbody tr:not(.loading-row, .empty-row) { border-radius: 10px; }
+  .rankings-table tbody tr:not(.loading-row, .empty-row) td { padding: 7px 9px; }
+  .rankings-table tbody tr:not(.loading-row, .empty-row) td:not(.rank-number, .player-cell) { gap: 2px; }
+  .rankings-table tbody tr:not(.loading-row, .empty-row) .player-cell { min-height: 62px; padding: 8px 8px 8px 54px; align-items: flex-start; }
+  .rankings-table tbody tr:not(.loading-row, .empty-row) .player-name { align-self: flex-start; font-size: .9rem; line-height: 1.2; }
+  .rankings-table .player-row-actions { margin-top: 3px; gap: 4px; }
+  .rankings-table .player-name,
+  .rankings-table .player-row-actions a { min-height: 28px; }
+  .rankings-table .ranking-headshot,
+  .rankings-table .ranking-headshot img { width: 40px; height: 40px; }
+  .mobile-preview-map .mobile-preview-detail[hidden] { display: none; }
+}
+
+@media (max-width: 760px) {
+  .mobile-archetypes { background: #f2f0e8; color: #23392f; }
+  .mobile-archetype-search { margin-bottom: 12px; }
+  .mobile-archetype-filters { display: flex; gap: 7px; overflow-x: auto; padding: 3px 2px 10px; scrollbar-width: thin; }
+  .mobile-archetypes .mobile-archetype-filter { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; min-height: 40px; border-color: #d4d9ce; background: #fffdf7; color: #23392f; font-size: .75rem; }
+  .mobile-archetype-filter i { width: 8px; height: 8px; border-radius: 50%; background: var(--type-color); }
+  .mobile-archetype-filter small { color: #5e6b62; font-variant-numeric: tabular-nums; }
+  .mobile-archetypes .mobile-archetype-filter[aria-pressed="true"] { border-color: var(--type-color); box-shadow: inset 0 -3px var(--type-color); font-weight: 750; }
+  .mobile-archetype-type-detail { margin: 0 0 10px; color: #55645c; font-size: .75rem; line-height: 1.5; }
+  .mobile-archetype-plot { fill: #fffdf7; stroke: #dedfd5; }
+  .mobile-archetype-grid { stroke: #e8e9e0; }
+  .mobile-preview .mobile-archetype-axis { font-size: 10px; fill: #718078; }
+  .mobile-archetype-player { cursor: pointer; }
+  .mobile-archetype-face-back { fill: #e7e9e4; }
+  .mobile-archetype-ring { fill: none; stroke: var(--type-color); stroke-width: 2; }
+  .mobile-archetype-player.is-selected .mobile-archetype-ring,
+  .mobile-archetype-player:focus-visible .mobile-archetype-ring { stroke-width: 4; }
+  .mobile-archetype-player:focus-visible { outline: none; }
+  .mobile-archetype-badge { fill: var(--type-color); }
+  .mobile-preview .mobile-archetype-badge-text { fill: white; font-size: 7px; font-weight: 800; }
+  .mobile-preview .mobile-archetype-initials { font-size: 10px; font-weight: 750; }
+  .mobile-archetype-detail { margin-top: 10px; padding: 14px; border-radius: 12px; border-left: 4px solid var(--type-color); background: #fffdf7; }
+  .mobile-archetype-detail[hidden] { display: none; }
+  .mobile-archetype-detail > a { display: block; font-size: 1rem; font-weight: 800; color: #23392f; }
+  .mobile-archetype-player-season { display: block; margin: 4px 0 10px; font-size: .72rem; color: #65736b; }
+  .mobile-archetype-type-name { font-size: .85rem; }
+  .mobile-archetype-detail p { margin: 6px 0; font-size: .76rem; }
+  .mobile-archetype-detail ul { margin: 10px 0 0; padding-left: 17px; font-size: .78rem; line-height: 1.7; }
+  .mobile-archetype-reading { margin-top: 12px; padding-top: 12px; border-top: 1px solid #d9ded2; }
+  .mobile-archetype-reading summary { font-size: .78rem; font-weight: 700; cursor: pointer; min-height: 32px; }
+  .mobile-archetype-reading p { font-size: .76rem; line-height: 1.6; }
+}
+
+@media (max-width: 760px) {
+  :is(.season-wins-table, .top-games-table) tbody { gap: 8px; }
+  :is(.season-wins-table, .top-games-table) tbody tr:not(.loading-row, .empty-row) { border-radius: 10px; }
+  :is(.season-wins-table, .top-games-table) tbody tr:not(.loading-row, .empty-row) td {
+    padding: 7px 8px;
+    font-size: .8rem;
+  }
+  :is(.season-wins-table, .top-games-table) tbody tr:not(.loading-row, .empty-row) td:not(.rank-number, .player-cell) {
+    min-height: 0;
+    gap: 2px;
+  }
+  :is(.season-wins-table, .top-games-table) tbody tr:not(.loading-row, .empty-row) .player-cell {
+    position: relative;
+    left: auto;
+    min-width: 0;
+    min-height: 56px;
+    padding: 7px 8px 7px 54px;
+    align-items: flex-start;
+  }
+  :is(.season-wins-table, .top-games-table) tbody tr:not(.loading-row, .empty-row) .player-name {
+    align-self: flex-start;
+    min-height: 28px;
+    font-size: .9rem;
+    line-height: 1.2;
+  }
+  :is(.season-wins-table, .top-games-table) .ranking-headshot,
+  :is(.season-wins-table, .top-games-table) .ranking-headshot img { width: 40px; height: 40px; }
+  .season-wins-table tbody tr:not(.loading-row, .empty-row) { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .season-wins-table tbody tr:not(.loading-row, .empty-row) td:not(.rank-number, .player-cell) { grid-column: span 3; padding: 7px 6px; }
+  .season-wins-table tbody tr:not(.loading-row, .empty-row) .player-teams { align-self: flex-start; margin-top: 0; text-align: left; }
+  .season-wins-table .category-percent { font-size: .65rem; }
+  .top-games-table tbody tr:not(.loading-row, .empty-row) :is(.game-stage-cell, .game-outcome-cell, .game-value-cell) { grid-column: span 2; }
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-value-cell { align-items: flex-start; }
+}
+
+@media (max-width: 760px) {
+  :is(.season-wins-table, .top-games-table) tbody tr:not(.loading-row, .empty-row) .rank-number { padding: 0 2px; }
+  .top-games-table tbody tr:not(.loading-row, .empty-row) .game-value-cell::before { content: "VC"; }
+  .top-games-table :is(.game-team-cell, .game-opponent-cell) span { min-width: 0; white-space: normal; }
+}
+
+/* V12 two-axis roles: one Offense / Defense switch shared by the type map and
+   the "who leads each role" lanes. */
+.style-side-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.style-side-toggle button {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: .82rem;
+  padding: 4px 12px;
+  cursor: pointer;
+  opacity: .7;
+}
+.style-side-toggle button[aria-pressed="true"] { opacity: 1; font-weight: 700; }
+.style-side-toggle .style-side-note { font-size: .8rem; opacity: .75; }
+
+/* --- V13 area maps and groupings --------------------------------------------
+   The two V13-only chart panels, drawn the way the approved V13 types preview
+   (v13-types.html) draws them. Everything is scoped to .v13-chart so none of
+   the preview's short class names can reach any other chart. */
+
+.chart-panel[hidden] { display: none; }
+.rankings-visual-chart.v13-chart { min-height: 0; overflow: visible; }
+.v13-chart .v13-bar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 0 0 12px; }
+.v13-chart .v13-bar > div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.v13-chart .v13-seg-label { margin-right: 6px; color: var(--muted); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+.v13-chart .v13-seg { display: inline-flex; flex-wrap: wrap; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.v13-chart .v13-seg button { padding: 7px 13px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: .88rem; cursor: pointer; }
+.v13-chart .v13-seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.v13-chart .v13-seg button:focus-visible { outline: 3px solid rgb(31 107 80 / 40%); outline-offset: -3px; }
+.v13-chart .v13-legend { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0 0 10px; padding: 0; list-style: none; }
+.v13-chart .v13-legend li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 4px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); font-size: .8rem; cursor: default; }
+.v13-chart .v13-legend li i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; }
+.v13-chart .v13-legend li small { color: var(--muted); }
+.v13-chart .v13-legend li.is-dim { opacity: .35; }
+.v13-chart .v13-axis-cap { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.v13-chart .v13-axis-top { margin-bottom: 4px; }
+.v13-chart .v13-axis-bottom { display: grid; gap: 2px; margin-top: 4px; }
+.v13-chart .v13-axis-across { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 18px; }
+.v13-chart .v13-axis-across span:last-child { margin-left: auto; text-align: right; }
+.v13-chart .v13-plot { position: relative; width: 100%; }
+.v13-chart .v13-plot svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+.v13-chart .v13-type-label { font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.v13-chart .v13-dot { stroke: var(--surface); stroke-width: .8px; }
+.v13-chart .v13-plot.has-hover .v13-dot { opacity: .2; }
+.v13-chart .v13-plot.has-hover .v13-dot.is-on { opacity: 1; stroke: var(--ink); stroke-width: 2px; }
+.v13-chart .v13-plot.has-type .v13-dot:not(.in-type) { opacity: .12; }
+.v13-chart .v13-tip { position: absolute; z-index: 5; min-width: 220px; max-width: 290px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); color: var(--ink); font-size: .8rem; line-height: 1.45; pointer-events: none; }
+.v13-chart .v13-tip[hidden] { display: none; }
+.v13-chart .v13-tip strong { display: block; font-size: .95rem; }
+.v13-chart .v13-tip > span { color: var(--muted); }
+.v13-chart .v13-tip .v13-tip-shared { display: block; margin-top: 4px; font-weight: 600; }
+.v13-chart .v13-tip ul { margin: 6px 0; padding: 0; list-style: none; }
+.v13-chart .v13-tip li { display: flex; gap: 6px; align-items: baseline; }
+.v13-chart .v13-tip li span { min-width: 78px; color: var(--muted); }
+.v13-chart .v13-tip li i { display: inline-block; flex: none; align-self: center; width: 9px; height: 9px; border-radius: 50%; }
+.v13-chart .v13-tip dl { display: grid; grid-template-columns: auto auto; gap: 1px 12px; margin: 0; }
+.v13-chart .v13-tip dt { color: var(--muted); }
+.v13-chart .v13-tip dd { margin: 0; text-align: right; }
+.v13-chart .v13-type-row { margin: 6px 0; padding: 4px 0 4px 8px; border-left: 4px solid var(--line); }
+.v13-chart .v13-type-caption { margin-bottom: 4px; color: var(--muted); font-size: .72rem; }
+.v13-chart .v13-type-caption b { color: var(--ink); font-weight: 650; }
+.v13-chart .v13-faces { display: flex; flex-wrap: wrap; gap: 6px 4px; }
+.v13-chart .v13-face { width: 58px; padding: 0; border: 0; background: none; color: var(--ink); font-family: inherit; font-size: .64rem; line-height: 1.15; text-align: center; cursor: pointer; }
+.v13-chart .v13-face:focus-visible { outline: 3px solid rgb(31 107 80 / 40%); outline-offset: 2px; border-radius: 8px; }
+.v13-chart .v13-face-photo { position: relative; display: block; width: 44px; height: 44px; margin: 0 auto 2px; overflow: hidden; border: 2px solid transparent; border-radius: 50%; background: var(--line); }
+.v13-chart .v13-face-photo img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; }
+.v13-chart .v13-face-photo span { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: .8rem; font-weight: 700; }
+.v13-chart .v13-bgrid.has-pick .v13-face { opacity: .25; }
+.v13-chart .v13-bgrid.has-pick .v13-face.is-lit { opacity: 1; }
+.v13-chart .v13-bgrid.has-pick .v13-face.is-lit .v13-face-photo { border-color: var(--ink); }
+.v13-chart .v13-pickbar { margin: 6px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: .82rem; line-height: 1.45; }
+.v13-chart .v13-pickbar-host { position: sticky; top: 0; z-index: 3; }
+.v13-chart .v13-pickbar button { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* Game DNA (owner's note, 2026-09-27): the part-of-the-game switch, then one
+   framed map with its legend and its four direction captions, then a short
+   card per group, and the "who is drawn" sentence last, as a footnote. */
+.v13-chart .v13-scope { margin: 14px 0 0; color: var(--muted); font-size: .74rem; line-height: 1.5; }
+.v13-chart .v13-dna-tabs { margin: 0 0 12px; }
+.v13-chart .v13-dna-tabs > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.v13-chart .v13-dna-tabs .v13-seg button { padding: 9px 18px; font-size: .95rem; font-weight: 650; }
+.v13-chart .v13-dna-frame { padding: 14px 16px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.v13-chart .v13-dna-frame .v13-legend { justify-content: center; margin-bottom: 12px; }
+.v13-chart .v13-dna-frame .v13-axis-top { text-align: center; }
+.v13-chart .v13-dna-frame .v13-axis-bottom { grid-template-columns: 1fr minmax(0, 1.2fr) 1fr; gap: 12px; align-items: start; }
+.v13-chart .v13-dna-frame .v13-axis-bottom p:nth-child(2) { text-align: center; }
+.v13-chart .v13-dna-frame .v13-axis-bottom p:nth-child(3) { text-align: right; }
+.v13-chart .v13-dna-frame .v13-axis-bottom .v13-axis-up { display: none; }
+.v13-chart .v13-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 14px; }
+.v13-chart .v13-types div { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-top: 4px solid var(--group-colour, var(--line)); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: .78rem; line-height: 1.4; }
+.v13-chart .v13-types b { font-size: .88rem; }
+.v13-chart .v13-types small { color: var(--muted); font-weight: 650; }
+.v13-chart .v13-types em { color: var(--ink); font-style: normal; }
+.v13-chart .v13-types span { color: var(--muted); }
+
+/* Game DNA faces: the season's most valuable players, on top of the dots. */
+.v13-chart .v13-dot-face .v13-face-ring { stroke-width: 2.5px; }
+.v13-chart .v13-plot.has-hover .v13-dot-face.is-on .v13-face-ring { stroke: var(--ink); }
+/* What each group means: one closed drawer, its cards in one sideways row. */
+.v13-chart .v13-dna-details { margin-top: 14px; }
+.v13-chart .v13-types-drawer { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.v13-chart .v13-types-drawer > summary { display: flex; align-items: baseline; gap: 10px; padding: 11px 14px; color: var(--ink); font-size: .9rem; font-weight: 700; cursor: pointer; }
+.v13-chart .v13-types-drawer > summary small { color: var(--muted); font-weight: 400; }
+.v13-chart .v13-types-drawer[open] > summary { border-bottom: 1px solid var(--line); }
+.v13-chart .v13-types-drawer .v13-types { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(240px, 280px); margin: 0; padding: 12px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: inline proximity; }
+.v13-chart .v13-types-drawer .v13-types > div { scroll-snap-align: start; }
+
+/* Groupings: a mosaic of tiles, the open grouping's players under its row. */
+.v13-chart .v13-find { display: flex; align-items: center; gap: 6px; }
+.v13-chart .v13-find input { width: 200px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: .85rem; }
+.v13-chart .v13-card { min-width: 0; border: 1px solid var(--line); border-top: 4px solid var(--card-colour, var(--line)); border-radius: 16px; background: var(--surface); }
+.v13-chart .v13-card-head { padding: 12px 14px 8px; border-bottom: 1px solid var(--line); }
+.v13-chart .v13-card h4 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0; color: var(--ink); font-size: 1rem; }
+.v13-chart .v13-card h4 > span { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.v13-chart .v13-card h4 i { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.v13-chart .v13-card h4 small { color: var(--muted); font-size: .78rem; font-weight: 400; white-space: nowrap; }
+.v13-chart .v13-mostly { margin: 3px 0 0; color: var(--muted); font-size: .74rem; line-height: 1.4; }
+.v13-chart .v13-card-body { padding: 4px 14px 12px; }
+.v13-chart .v13-wins-bar { display: block; height: 4px; overflow: hidden; border-radius: 4px; background: var(--line); }
+.v13-chart .v13-wins-bar span { display: block; height: 100%; border-radius: 4px; }
+/* Mosaic: a tile per grouping with its leading faces; the open one's players
+   directly under its row, pointed at by a notch, scrolling on their own. */
+.v13-chart .v13-tile[aria-expanded="true"] { border-color: var(--ink); border-top-color: var(--card-colour, var(--ink)); box-shadow: 0 0 0 1px var(--ink); }
+.v13-chart .v13-tile:hover { border-color: var(--ink); }
+.v13-chart .v13-tiles > .v13-card.is-detail { position: relative; grid-column: 1 / -1; margin: 4px 0 6px; }
+.v13-chart .v13-tiles > .v13-card.is-detail::before { content: ""; position: absolute; top: -12px; left: var(--notch, 24px); border: 9px solid transparent; border-bottom-color: var(--card-colour, var(--ink)); }
+.v13-chart .is-mosaic .v13-card-body { max-height: 520px; overflow-y: auto; overscroll-behavior: contain; }
+.v13-chart .is-mosaic .v13-card .v13-face { width: 68px; font-size: .7rem; }
+.v13-chart .is-mosaic .v13-card .v13-face-photo { width: 54px; height: 54px; }
+.v13-chart .v13-card-close { margin-left: 10px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: .74rem; cursor: pointer; }
+.v13-chart .v13-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.v13-chart .v13-tile { display: grid; gap: 7px; padding: 11px 12px; border: 1px solid var(--line); border-top: 4px solid var(--card-colour, var(--line)); border-radius: 14px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.v13-chart .v13-tile b { font-size: .9rem; }
+.v13-chart .v13-tile small { color: var(--muted); font-size: .74rem; }
+.v13-chart .v13-stack { display: flex; align-items: center; }
+.v13-chart .v13-stack .v13-face-photo { width: 38px; height: 38px; margin: 0 0 0 -8px; border: 2px solid var(--surface); }
+.v13-chart .v13-stack .v13-face-photo:first-child { margin-left: 0; }
+.v13-chart .v13-stack-more { margin-left: 6px; color: var(--muted); font-size: .76rem; font-weight: 650; }
+
+@media (max-width: 640px) {
+  .v13-chart .v13-seg { border-radius: 14px; }
+  .v13-chart .v13-seg button { padding: 6px 10px; font-size: .82rem; }
+  .v13-chart .v13-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .v13-chart .v13-stack .v13-face-photo { width: 24px; height: 24px; margin-left: -9px; }
+  .v13-chart .v13-stack-more { margin-left: 4px; font-size: .7rem; }
+  .v13-chart .v13-find input { width: 100%; }
+  .v13-chart .v13-find { flex: 1 1 100%; }
+  .v13-chart .v13-dna-tabs .v13-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+  .v13-chart .v13-dna-tabs .v13-seg button { padding: 8px 2px; font-size: .78rem; }
+  .v13-chart .v13-dna-frame { padding: 10px 8px; }
+  .v13-chart .v13-dna-frame .v13-axis-bottom { grid-template-columns: 1fr; }
+  .v13-chart .v13-dna-frame .v13-axis-bottom p:nth-child(n) { text-align: left; }
+  /* Up, down, left, right: every direction in one column under the plot. */
+  .v13-chart .v13-dna-frame .v13-axis-top { display: none; }
+  .v13-chart .v13-dna-frame .v13-axis-bottom .v13-axis-up { display: block; order: -2; }
+  .v13-chart .v13-dna-frame .v13-axis-bottom p:nth-child(2) { order: -1; }
+  .v13-chart .v13-dna-frame .v13-axis-bottom p:empty { display: none; }
+  /* The group key is one row that scrolls sideways instead of wrapping. */
+  .v13-chart .v13-dna-frame .v13-legend { flex-wrap: nowrap; justify-content: flex-start; margin-right: -8px; padding-bottom: 6px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+  .v13-chart .v13-dna-frame .v13-legend li { flex: none; white-space: nowrap; }
+  .v13-chart .v13-types-drawer .v13-types { grid-auto-columns: 78%; }
+  .v13-chart .v13-tip { min-width: 0; max-width: min(290px, calc(100vw - 48px)); }
+}
+
+/* The phone's filter bar (owner's note, 2026-09-27): folded by default, it
+   says what the filters are set to, and opens them on a tap. Desktop never
+   shows the bar and never folds the filters. */
+.filters-toggle { display: none; }
+@media (max-width: 760px) {
+  .filters-toggle {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px;
+    width: 100%; min-height: 48px; margin: 0 0 10px; padding: 10px 14px;
+    border: 1px solid var(--line); border-radius: 14px; background: #f4f2ec;
+    color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+  }
+  .filters-toggle > span:first-child { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+  .filters-summary { overflow: hidden; color: var(--muted); font-size: .8rem; white-space: nowrap; text-overflow: ellipsis; }
+  .filters-chevron { transition: transform 160ms ease; }
+  .filters-toggle[aria-expanded="true"] .filters-chevron { transform: rotate(180deg); }
+  .controls.is-collapsed { display: none; }
+}
+
+/* "Wins Contributed by player type" on a phone: the explorer, not the chart. */
+@media (max-width: 760px) {
+  .type-trend-mobile + .type-trend-layout { display: none; }
+  /* The top-player switches only change the desktop chart. */
+  #rankings-type-trends-view .chart-view-segment:is([aria-label="Top players"], [aria-label="Show their faces (trial)"]) { display: none; }
 }

@@ -1,7 +1,7 @@
-import { createOriginalPackageCalculator } from "./calculator-kernel.js";
+import { createOriginalPackageCalculator } from "./calculator-kernel.js?v=20260904-experiment-progress-v1";
 import { openOriginalExperimentDatabase } from "./indexeddb-store.js";
 import { serializeError, workerEnvelope, WorkerEvent } from "./protocol.js";
-import { OriginalExperimentWorkerRuntime } from "./worker-runtime.js";
+import { OriginalExperimentWorkerRuntime } from "./worker-runtime.js?v=20260904-experiment-progress-v1";
 
 export async function installOriginalExperimentWorker(scope = globalThis, dependencies = {}) {
   try {
@@ -17,6 +17,7 @@ export async function installOriginalExperimentWorker(scope = globalThis, depend
         userAgent: scope.navigator?.userAgent,
         userAgentData: scope.navigator?.userAgentData,
       },
+      seasonBatchSize: dependencies.seasonBatchSize ?? 3,
     });
     scope.addEventListener("message", (event) => { void runtime.handleMessage(event.data); });
     await runtime.initialize();

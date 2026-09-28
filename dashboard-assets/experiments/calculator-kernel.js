@@ -4,16 +4,21 @@ import { expandOriginalExperimentConfiguration } from "./configuration.js";
 import { decodeVerifiedCatalog, decodeVerifiedSeasonPackages } from "./package-decoder.js";
 import {
   ORIGINAL_BROWSER_CALCULATION_VERSION,
-  calculateOriginalBrowserTeams,
+  calculateOriginalBrowserGames,
   finalizeBrowserResultRows,
   verifyOfficialParity,
-} from "./original-browser-calculation.js";
+} from "./original-browser-calculation.js?v=20260904-experiment-progress-v1";
 
 export const PACKAGE_CALCULATOR_KERNEL_VERSION = `${ENGINE_VERSION}:kernel-v1`;
 const RESULT_BATCH_SIZE = 1_000;
+const GAME_PROGRESS_YIELD_INTERVAL = 16;
 
 function abortCheckpoint(signal) {
   signal?.throwIfAborted?.();
+}
+
+function yieldToWorkerEventLoop() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function strictConfigurationIdentity(left, right) {
@@ -68,13 +73,60 @@ export function createOriginalPackageCalculator() {
         progress: { stage: "packages-decoded", completed: 0, total: decoded.players.length },
       };
       abortCheckpoint(signal);
-      const calculated = calculateOriginalBrowserTeams({
+      const expectedGameIds = new Set(decoded.games.map((game) => String(game.game_id)));
+      if (expectedGameIds.size !== decoded.games.length) {
+        throw new BrowserExperimentError(
+          "season_game_identity_mismatch",
+          `Season ${season.season_end_year} contains duplicate game metadata.`,
+        );
+      }
+      const calculated = [];
+      const calculatedGameIds = new Set();
+      yield {
+        type: KernelEvent.PROGRESS,
+        progress: {
+          stage: "games",
+          completed: 0,
+          total: expectedGameIds.size,
+          currentGameId: null,
+        },
+      };
+      for (const game of calculateOriginalBrowserGames({
         players: decoded.players,
         contextOperands: decoded.context_operands,
         coefficientBasis: decoded.coefficient_basis,
         responsibilityMetadata: decoded.responsibility_metadata,
         configuration: expanded,
-      });
+      })) {
+        abortCheckpoint(signal);
+        if (!expectedGameIds.has(game.gameId) || calculatedGameIds.has(game.gameId)) {
+          throw new BrowserExperimentError(
+            "season_calculation_game_mismatch",
+            `Season ${season.season_end_year} calculated an unexpected game ${game.gameId}.`,
+          );
+        }
+        calculated.push(...game.rows);
+        calculatedGameIds.add(game.gameId);
+        yield {
+          type: KernelEvent.PROGRESS,
+          progress: {
+            stage: "games",
+            completed: calculatedGameIds.size,
+            total: expectedGameIds.size,
+            currentGameId: game.gameId,
+          },
+        };
+        if (calculatedGameIds.size % GAME_PROGRESS_YIELD_INTERVAL === 0) {
+          await yieldToWorkerEventLoop();
+          abortCheckpoint(signal);
+        }
+      }
+      if (calculatedGameIds.size !== expectedGameIds.size) {
+        throw new BrowserExperimentError(
+          "season_calculation_game_coverage_mismatch",
+          `Season ${season.season_end_year} calculation covered ${calculatedGameIds.size} of ${expectedGameIds.size} games.`,
+        );
+      }
       const parity = verifyOfficialParity(calculated, decoded.official_outputs, expanded);
       const rows = await finalizeBrowserResultRows(
         calculated,

@@ -55,6 +55,7 @@ export const WorkerEvent = Object.freeze({
   SEASON_STARTED: "season-started",
   SHARD_VERIFIED: "shard-verified",
   SEASON_CHECKPOINT: "season-checkpoint",
+  RECYCLE: "worker-recycle",
   COMPLETE: "complete",
   CANCELLED: "cancelled",
   ERROR: "error",

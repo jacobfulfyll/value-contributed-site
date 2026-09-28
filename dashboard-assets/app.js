@@ -1,3 +1,17 @@
+// This file is a classic script, not a module: index.html loads it with
+// `defer`. name-fold.js and page-notice.js are loaded (deferred) ahead of it in
+// the same way team-directory.js is, and publish themselves on globalThis.
+//
+// name-fold.js carries the site's one name-folding rule — the rule
+// `src/name_search.py` runs in Python and in SQL. This page's search is
+// answered by the server, or on the published tree by the shim, and both fold
+// with it. page-notice.js turns a browser's own "Failed to fetch" into a
+// sentence a reader can act on, and leaves a message this site wrote alone.
+const { readableError } = globalThis.ValueContributedPageNotice;
+const RANKING_HEADSHOT_FALLBACK = new URL("./assets/player-silhouette.svg?v=plain-20260923", document.currentScript.src).href;
+
+const DEFAULT_RANKING_LIMIT = "25";
+
 const state = {
   controller: null,
   trendController: null,
@@ -22,22 +36,27 @@ const state = {
   contextPage: 1,
   contextTrigger: null,
   rankingsRunId: null,
+  rankingsEngineVersion: null,
   v8RunId: null,
   officialRunIds: {},
   rankingsPayload: null,
   rankingsScopeSignature: null,
   rankingCardRequestToken: null,
-  recordColumnsExpanded: false,
-  contextColumnsExpanded: false,
   experimentClient: null,
+  localExperimentCatalog: [],
+  serverExperimentCatalog: [],
+  serverExperimentRankingCache: new Map(),
   experimentCatalog: null,
   experimentManifest: null,
   experimentReview: null,
   experimentStarting: false,
   activeExperimentId: null,
+  experimentRunProgress: null,
   runtimeModule: null,
   rankingCardModule: null,
   multiSeasonModule: null,
+  rankingsVisualModule: null,
+  rankingsVisualWorkspace: null,
   storageModule: null,
   rankingCardArtifact: null,
   advancedRefreshRevision: 0,
@@ -55,21 +74,92 @@ const state = {
   deferredPanelQueue: Promise.resolve(),
   deferredPanelGeneration: 0,
   deferredPanelsReady: false,
-  deferredPanelObserver: null,
   seasonValues: [],
   allowedSeasonValues: null,
+  // Server statistic id -> the season end years it has calculated.
+  sourceSeasonEndYears: {},
+  // Server statistic id -> its own one-paragraph description, when it has one.
+  sourceDescriptions: {},
+  // The server statistics this page may show (the default alone with the
+  // switch off); null until /api/sources has answered.
+  offeredSources: null,
   selectedSeasons: [],
   seasonScopeAll: true,
 };
 
 const OFFICIAL_RANKINGS = Object.freeze([
-  { value: "original", label: "Original" },
+  { value: "v13", label: "V13" },
+  { value: "v12", label: "V12" },
+  { value: "v11", label: "V11" },
+  { value: "v10", label: "V10" },
+  { value: "original", label: "V9" },
 ]);
 const OFFICIAL_RANKING_SLUGS = new Set(
   OFFICIAL_RANKINGS.map((ranking) => ranking.value),
 );
+// /api/sources names the V9 baseline `v9`; this page has always called that
+// slug `original`. Every other official ranking uses the same name in both.
+const SOURCE_ID_FOR_RANKING = Object.freeze({ original: "v9" });
+const RANKING_FOR_SOURCE_ID = Object.freeze({ v9: "original" });
+const GARBAGE_TIME_MODES = Object.freeze([
+  Object.freeze({ value: "competitive", label: "Exclude garbage time" }),
+  Object.freeze({ value: "all_minutes", label: "Include garbage time" }),
+]);
+// Versions whose panels are served by their own /api/<version> endpoints.
+const SERVER_STAT_VERSIONS = new Set(["v10", "v11", "v12", "v13"]);
+// V12 is answered by V11's own routes under /api/v12, in V11's shapes, so
+// every panel that asks V11's API a question asks V12's the same way. What
+// V12 lacks (types, descriptions, the context breakdown) its answers say.
+// V13 is answered the same way under /api/v13.
+const V11_SHAPED_STAT_VERSIONS = new Set(["v11", "v12", "v13"]);
+// team-directory.js is loaded (deferred) ahead of this script and turns a
+// numeric NBA team id into the three-letter abbreviation shown on screen.
+const TEAM_DIRECTORY = window.ValueContributedTeamDirectory ?? null;
+const UNKNOWN_TEAM_LABEL = TEAM_DIRECTORY?.UNKNOWN_TEAM ?? "—";
+
+function teamRecord(teamId, overrides = {}) {
+  if (TEAM_DIRECTORY) return TEAM_DIRECTORY.teamRecord(teamId, overrides);
+  const id = Number.isFinite(Number(teamId)) ? Number(teamId) : null;
+  return {
+    id,
+    team_id: id,
+    abbreviation: UNKNOWN_TEAM_LABEL,
+    name: UNKNOWN_TEAM_LABEL,
+    team_name: UNKNOWN_TEAM_LABEL,
+  };
+}
+
+function teamRecords(teamIds = [], abbreviations = []) {
+  return (teamIds ?? []).map((teamId, index) => teamRecord(teamId, {
+    abbreviation: (abbreviations ?? [])[index] ?? null,
+  }));
+}
 const ORIGINAL_ENGINE_VERSION = "value-contributed-original-browser-engine-v1-2026-08-30";
 const ORIGINAL_CONFIG_SCHEMA = "value-contributed-original-experiment-config-v1";
+
+// --- the experiments switch ---------------------------------------------------
+//
+// One site-wide switch, off unless the page says otherwise, so that what the
+// owner sees locally is what is published.  The server stamps
+// `<meta name="vc-experiments">` when VALUE_CONTRIBUTED_EXPERIMENTS is set, and
+// `scripts/build_v11_site.py --with-experiments` stamps the same tag into the
+// built tree.  Reading a meta tag rather than an endpoint is deliberate: it is
+// known before the first fetch, so nothing experimental can start and then be
+// told to stop.
+
+/** Whether a `vc-experiments` meta content means "on".  Anything else is off. */
+function experimentsEnabled(metaContent) {
+  return String(metaContent ?? "").trim().toLowerCase() === "on";
+}
+
+/** The switch this page was served with. */
+function experimentsSwitchedOn(doc = typeof document === "undefined" ? null : document) {
+  return experimentsEnabled(
+    doc?.querySelector('meta[name="vc-experiments"]')?.content,
+  );
+}
+
+const EXPERIMENTS_ON = experimentsSwitchedOn();
 const OUTCOME_GROUPS = Object.freeze([
   {
     key: "field-goals",
@@ -168,21 +258,20 @@ const VIRTUAL_RAW_FIELD_GROUP = new Map(
     keys.map((key) => [key, group])),
 );
 
+// The three context columns sort by their share of the selected total.
 const contextSorts = new Set([
-  "side_context_raw_value",
-  "offense_context_value",
-  "defense_context_value",
-  "general_offense_context_value",
-  "general_defense_context_value",
-  "teammate_offense_context_value",
-  "opponent_offense_context_value",
-  "teammate_defense_context_value",
-  "opponent_defense_context_value",
+  "side_context_raw_pct",
+  "offense_context_pct",
+  "defense_context_pct",
 ]);
+// Links written before the context sides sorted by share still work.
+const LEGACY_CONTEXT_SORTS = Object.freeze({
+  offense_context_value: "offense_context_pct",
+  defense_context_value: "defense_context_pct",
+});
 const responsibilitySorts = new Set([
   "offense_value",
   "defense_value",
-  "other_value",
 ]);
 
 const elements = {
@@ -200,31 +289,33 @@ const elements = {
   breakdownMode: document.querySelector("#breakdown-mode"),
   search: document.querySelector("#search"),
   limit: document.querySelector("#limit"),
-  title: document.querySelector("#results-title"),
-  meta: document.querySelector("#results-meta"),
   body: document.querySelector("#rankings-body"),
   error: document.querySelector("#error"),
+  resultsScopeTitle: document.querySelector("#results-scope-title"),
   sortableHeadings: Array.from(
     document.querySelectorAll(".rankings-table .sortable-heading"),
   ),
   mobileSort: document.querySelector("#mobile-sort"),
   mobileSortDirection: document.querySelector("#mobile-sort-direction"),
-  topGamesSeason: document.querySelector("#top-games-season"),
-  topGamesPhase: document.querySelector("#top-games-phase"),
+  topGamesPhases: Array.from(
+    document.querySelectorAll('input[name="top-games-phase"]'),
+  ),
   topGamesOutcomes: Array.from(
     document.querySelectorAll('input[name="top-games-outcome"]'),
   ),
-  topGamesLimit: document.querySelector("#top-games-limit"),
-  topGamesMeta: document.querySelector("#top-games-meta"),
   topGamesBody: document.querySelector("#top-games-body"),
   topGamesError: document.querySelector("#top-games-error"),
   seasonWinsPhases: Array.from(document.querySelectorAll('input[name="season-wins-phase"]')),
-  seasonWinsMeta: document.querySelector("#season-wins-meta"),
+  seasonWinsLimit: document.querySelector("#season-wins-limit"),
   seasonWinsBody: document.querySelector("#season-wins-body"),
   seasonWinsError: document.querySelector("#season-wins-error"),
-  highValuePhase: document.querySelector("#high-value-phase"),
-  highValueRecordsMeta: document.querySelector("#high-value-records-meta"),
+  highValuePhases: Array.from(
+    document.querySelectorAll('input[name="high-value-phase"]'),
+  ),
   highValuePlayerCount: document.querySelector("#high-value-player-count"),
+  highValueThresholds: Array.from(
+    document.querySelectorAll(".high-value-threshold"),
+  ),
   highValueRecordsBody: document.querySelector("#high-value-records-body"),
   highValueRecordsError: document.querySelector("#high-value-records-error"),
   highValueSortableHeadings: Array.from(
@@ -239,8 +330,11 @@ const elements = {
   highValueRecordsDetails: document.querySelector("#high-value-records"),
   trendsSection: document.querySelector(".trends:not(.lift-trends)"),
   liftSection: document.querySelector(".lift-trends"),
+  chartPanels: new Map(
+    Array.from(document.querySelectorAll("[data-rankings-panel]"))
+      .map((panel) => [panel.dataset.rankingsPanel, panel]),
+  ),
   trendChart: document.querySelector("#trend-chart"),
-  trendMeta: document.querySelector("#trends-meta"),
   trendError: document.querySelector("#trends-error"),
   trendPhases: Array.from(document.querySelectorAll('input[name="trend-phase"]')),
   trendWindows: Array.from(document.querySelectorAll('input[name="trend-window"]')),
@@ -248,7 +342,6 @@ const elements = {
   legendSummary: document.querySelector("#legend-summary"),
   trendTooltip: document.querySelector("#trend-tooltip"),
   liftChart: document.querySelector("#lift-chart"),
-  liftMeta: document.querySelector("#lift-meta"),
   liftError: document.querySelector("#lift-error"),
   liftWindows: Array.from(document.querySelectorAll('input[name="lift-window"]')),
   liftGroups: Array.from(document.querySelectorAll('input[name="lift-group"]')),
@@ -257,14 +350,11 @@ const elements = {
   liftTooltip: document.querySelector("#lift-tooltip"),
   rankingsTable: document.querySelector("#rankings-table"),
   sideGroupHeading: document.querySelector("#side-group-heading"),
-  recordColumnsToggle: document.querySelector("#record-columns-toggle"),
-  contextColumnsToggle: document.querySelector("#context-columns-toggle"),
   v8ContextOnly: Array.from(document.querySelectorAll(".v8-context-only")),
   experimentContextOnly: Array.from(document.querySelectorAll(".experiment-context-only")),
   contextGroupHeading: document.querySelector("#context-group-heading"),
   offenseHeading: document.querySelector("#offense-heading"),
   defenseHeading: document.querySelector("#defense-heading"),
-  otherHeading: document.querySelector("#other-heading"),
   rankingsDefinition: document.querySelector("#rankings-definition"),
   rankingsGuideSummary: document.querySelector("#rankings-guide-summary"),
   contextDialog: document.querySelector("#player-context-dialog"),
@@ -305,6 +395,11 @@ const elements = {
   resetAllAdvanced: document.querySelector("#reset-all-advanced"),
   experimentValidationSummary: document.querySelector("#experiment-validation-summary"),
   experimentValidationErrors: document.querySelector("#experiment-validation-errors"),
+  experimentRunProgress: document.querySelector("#experiment-run-progress"),
+  experimentRunProgressLabel: document.querySelector("#experiment-run-progress-label"),
+  experimentRunProgressCount: document.querySelector("#experiment-run-progress-count"),
+  experimentRunProgressBar: document.querySelector("#experiment-run-progress-bar"),
+  experimentRunProgressDetail: document.querySelector("#experiment-run-progress-detail"),
   resetExperiment: document.querySelector("#reset-experiment"),
   runExperiment: document.querySelector("#run-experiment"),
   cancelExperiment: document.querySelector("#cancel-experiment"),
@@ -343,6 +438,34 @@ function selectedTopGamesOutcome() {
   return document.querySelector('input[name="top-games-outcome"]:checked').value;
 }
 
+// The highest-games panel reads one schedule or the other, never both, and it
+// always shows the twenty-five its heading names.
+const TOP_GAMES_LIMIT = 25;
+
+function selectedTopGamesPhase() {
+  return document.querySelector('input[name="top-games-phase"]:checked')?.value
+    || "Regular Season";
+}
+
+// The club is named after the number the answering statistic actually counted.
+// V11 counts .500; the two earlier statistics still publish their own .400
+// population, and the panel says so rather than mislabelling their rows.
+function applyHighValueThreshold(threshold) {
+  const value = Number(threshold);
+  if (!Number.isFinite(value)) return;
+  const label = value.toFixed(3).replace(/^0/u, "");
+  elements.highValueThresholds.forEach((node) => { node.textContent = label; });
+}
+
+function selectedHighValuePhase() {
+  return document.querySelector('input[name="high-value-phase"]:checked')?.value
+    || "Regular Season";
+}
+
+function selectedSeasonWinsLimit() {
+  return elements.seasonWinsLimit?.value || "25";
+}
+
 function garbageTimeLabel() {
   return elements.garbageTimeMode.value === "all_minutes"
     ? "Garbage time included"
@@ -354,13 +477,101 @@ function statVersionLabel() {
     return elements.statVersion.selectedOptions[0]?.textContent || "My experiment";
   }
   const labels = {
-    original: "Original",
+    v13: "V13",
+    v12: "V12",
+    v11: "V11",
+    v10: "V10",
+    original: "V9",
   };
   return labels[elements.statVersion.value] || elements.statVersion.value;
 }
 
 function isFullLineupExperiment() {
   return elements.statVersion.value.startsWith("experiment:");
+}
+
+function isServerStatVersion() {
+  return SERVER_STAT_VERSIONS.has(elements.statVersion.value);
+}
+
+// The official group always reads in OFFICIAL_RANKINGS order (V11, V10, V9).
+// V11 is baked into the page so the first paint is right; V10 and V9 are added
+// only when /api/sources lists them, and V11 is removed again when its API has
+// nothing to serve.
+function setOfficialRankingOption(value, label, { present = true } = {}) {
+  const group = elements.officialRankingOptions;
+  const existing = group.querySelector(`option[value="${value}"]`);
+  if (!present) {
+    existing?.remove();
+    return;
+  }
+  if (existing) {
+    existing.textContent = label;
+    return;
+  }
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  const order = OFFICIAL_RANKINGS.map((ranking) => ranking.value);
+  const follower = Array.from(group.querySelectorAll("option")).find((candidate) => {
+    const position = order.indexOf(candidate.value);
+    return position !== -1 && position > order.indexOf(value);
+  });
+  if (follower) group.insertBefore(option, follower);
+  else group.append(option);
+}
+
+function officialRankingValues() {
+  return new Set(Array.from(
+    elements.officialRankingOptions.querySelectorAll("option"),
+    (option) => option.value,
+  ));
+}
+
+// V11 is the official statistic, so it is the default whenever it is present;
+// the server's own default wins when it names something else that is present.
+function defaultOfficialRanking(serverDefault = null) {
+  const available = officialRankingValues();
+  return [serverDefault, ...OFFICIAL_RANKINGS.map((ranking) => ranking.value)]
+    .find((value) => value && available.has(value)) ?? "v11";
+}
+
+function officialRankingLabel(value) {
+  return OFFICIAL_RANKINGS.find((ranking) => ranking.value === value)?.label ?? "V11";
+}
+
+// V10 and V11 publish their own options documents. Each is turned into the one
+// bootstrap shape this page reads, so the page never has to know whose season
+// list it is holding.
+function serverBootstrapOptions(statVersion, options) {
+  const entries = options?.seasons ?? options?.season_end_years ?? [];
+  const labels = entries.map((entry) => {
+    if (entry && typeof entry === "object") return String(entry.season);
+    const year = Number(entry);
+    return Number.isInteger(year)
+      ? `${year - 1}-${String(year).slice(-2).padStart(2, "0")}`
+      : String(entry);
+  });
+  const descending = [...new Set(labels)].sort().reverse();
+  if (!descending.length) throw new Error("The season list could not be loaded.");
+  const runId = (options?.sources ?? [])
+    .find((row) => row.id === statVersion)?.run_id ?? null;
+  return {
+    run: runId ? { run_id: runId } : null,
+    seasons: ["All Seasons", ...descending],
+    default_season: descending[0],
+    default_garbage_time_mode: "competitive",
+    default_stat_version: statVersion,
+    stat_versions: runId ? [{ value: statVersion, run_id: runId }] : [],
+    garbage_time_modes: GARBAGE_TIME_MODES.map((mode) => ({ ...mode })),
+  };
+}
+
+// V9 keeps its own bootstrap endpoint.
+async function originalBootstrapOptions() {
+  const response = await fetch("/api/rankings/options");
+  if (!response.ok) throw new Error("The season list could not be loaded.");
+  return response.json();
 }
 
 function availableRankingSeasons() {
@@ -426,10 +637,18 @@ function updateSeasonPickerPresentation({ message = null } = {}) {
   const staged = checkedRankingSeasons();
   const applied = selectedRankingSeasons();
   const dirty = staged.length > 0 && !sameSeasonSelection(staged, applied);
-  elements.seasonSelectionSummary.textContent = rankingSeasonLabel(staged.length ? staged : applied);
+  // The control's summary names the staged selection the same way the table
+  // card's header does — "2013–2018 · 5 seasons", not "2013-14–2017-18". It
+  // reads the staged ticks rather than the applied scope, so ticking every
+  // season says "All Seasons" before it is applied as well as after.
+  elements.seasonSelectionSummary.textContent = staged.length
+    ? seasonRangeHeading(staged, { all: seasonSelectionCoversAll(staged) })
+    : "Choose seasons";
   elements.applySeasons.disabled = !dirty;
   if (message) {
     elements.seasonPickerStatus.textContent = message;
+  } else if (!staged.length) {
+    elements.seasonPickerStatus.textContent = "Choose at least one season, then apply.";
   } else if (dirty) {
     elements.seasonPickerStatus.textContent = "Apply this selection to update the rankings.";
   } else if (!contextSeasonValue(applied)) {
@@ -455,6 +674,7 @@ function setStagedSeasonShortcut(shortcut) {
   let selected = available;
   if (shortcut === "first-five") selected = available.slice(-5);
   if (shortcut === "last-five") selected = available.slice(0, 5);
+  if (shortcut === "none") selected = [];
   setCheckedRankingSeasons(selected);
   updateSeasonPickerPresentation();
 }
@@ -462,7 +682,7 @@ function setStagedSeasonShortcut(shortcut) {
 function applyRankingSeasonSelection() {
   const selected = checkedRankingSeasons();
   if (!selected.length) {
-    updateSeasonPickerPresentation({ message: "Keep at least one season checked." });
+    updateSeasonPickerPresentation({ message: "Choose at least one season before applying." });
     return;
   }
   state.selectedSeasons = selected;
@@ -512,6 +732,53 @@ function selectedExperimentId() {
     : null;
 }
 
+function entityAnalyticsSource() {
+  const experimentId = selectedExperimentId();
+  if (experimentId) return `experiment:${experimentId}`;
+  // V10 and V11 each serve their own player, team, compare and season pages.
+  return isServerStatVersion() ? elements.statVersion.value : "v9";
+}
+
+function entityAnalyticsUrl(kind, entityId) {
+  const params = new URLSearchParams({
+    source: entityAnalyticsSource(),
+    schedule: {
+      All: "all",
+      "Regular Season": "regular_season",
+      PlayIn: "play_in",
+      Playoffs: "playoffs",
+      Postseason: "postseason",
+    }[elements.phase.value] || "all",
+    time_mode: elements.garbageTimeMode.value,
+    metric: state.sortBy === "wins_contributed" || selectedBreakdownMode() === "wc"
+      ? "wins_contributed"
+      : "value_contributed",
+  });
+  const selectedSeason = contextSeasonValue();
+  if (selectedSeason && selectedSeason !== "All Seasons") params.set("season", selectedSeason);
+  params.set(kind === "players" ? "player_id" : "team_id", String(entityId));
+  return `/${kind}?${params}`;
+}
+
+function playerComparisonUrl(row) {
+  const seasons = selectedRankingSeasons();
+  const params = new URLSearchParams({
+    source: entityAnalyticsSource(),
+    mode: !seasonSelectionIsAll(seasons) && seasons.length === 1 ? "season" : "span",
+    schedule: {
+      All: "all", "Regular Season": "regular_season", PlayIn: "play_in",
+      Playoffs: "playoffs", Postseason: "postseason",
+    }[elements.phase.value] || "all",
+    time_mode: elements.garbageTimeMode.value,
+    metric: state.sortBy === "wins_contributed" || selectedBreakdownMode() === "wc"
+      ? "wins_contributed" : "value_contributed",
+    p1: String(row.player_id),
+    p1_name: row.player_name,
+  });
+  if (!seasonSelectionIsAll(seasons)) seasons.forEach((season) => params.append("p1_season", season));
+  return `/compare/players?${params}`;
+}
+
 function apiStatVersion() {
   return isFullLineupExperiment() ? "original" : elements.statVersion.value;
 }
@@ -548,15 +815,271 @@ function throwIfRequestAborted(signal) {
   throw new DOMException("The operation was aborted.", "AbortError");
 }
 
+async function responseErrorPayload(response) {
+  try {
+    return await response.json();
+  } catch (_error) {
+    return {};
+  }
+}
+
+function displayedResponsibilityAliases(row, breakdownMode) {
+  const winsMode = breakdownMode === "wc";
+  return {
+    offense_value: Number(winsMode
+      ? row.offensive_wins_contributed ?? 0
+      : row.offensive_value_contributed ?? row.offense_value ?? 0),
+    defense_value: Number(winsMode
+      ? row.defensive_wins_contributed ?? 0
+      : row.defensive_value_contributed ?? row.defense_value ?? 0),
+    other_value: Number(winsMode
+      ? row.other_wins_contributed ?? 0
+      : row.other_value_contributed ?? row.other_value ?? 0),
+  };
+}
+
 async function requestRankingPanel({ panel, url, params, signal }) {
   const experimentId = selectedExperimentId();
+  if (!experimentId && isServerStatVersion()) {
+    const serverStat = elements.statVersion.value;
+    const serverStatLabel = serverStat.toUpperCase();
+    const season = params.get("season");
+    if (panel === "player-context") {
+      // V11 answers the dialog in the dashboard's own terms — season label,
+      // phase and page — so its parameters pass straight through. V12 answers
+      // it through the same route.
+      if (!V11_SHAPED_STAT_VERSIONS.has(serverStat)) {
+        throw new Error(`The ${serverStatLabel} ${panel} view is not available in this panel yet.`);
+      }
+      const contextParams = new URLSearchParams({
+        player_id: params.get("player_id") ?? "",
+        season: season ?? "All Seasons",
+        phase: params.get("phase") ?? "All",
+        garbage_time_mode: params.get("garbage_time_mode") ?? "competitive",
+        breakdown_mode: params.get("breakdown_mode") ?? "vc",
+        page: params.get("page") ?? "1",
+        per_page: params.get("per_page") ?? "20",
+      });
+      const contextResponse = await fetch(
+        `/api/${serverStat}/rankings/player-context?${contextParams}`,
+        { signal },
+      );
+      if (!contextResponse.ok) {
+        const detail = await responseErrorPayload(contextResponse);
+        throw new Error(detail?.detail?.message ?? detail?.detail
+          ?? `The ${serverStatLabel} ${panel} panel could not be loaded.`);
+      }
+      return contextResponse.json();
+    }
+    // V11 orders and pages the table itself (`sort_by`/`sort_direction`), so a
+    // page of twenty-five rows costs twenty-five rows. V10 has no such
+    // parameter, so it keeps the old shape: ask for the widest answer the
+    // endpoint gives and order it here.
+    const serverSorts = V11_SHAPED_STAT_VERSIONS.has(serverStat) && panel === "rankings";
+    const drawnLimit = String(params.get("limit") ?? "100");
+    const v10Params = new URLSearchParams({
+      schedule: ({
+        All: "all", "Regular Season": "regular_season", PlayIn: "play_in",
+        Playoffs: "playoffs", Postseason: "postseason",
+      })[params.get("phase")] ?? "all",
+      time_mode: params.get("garbage_time_mode") ?? "competitive",
+      limit: panel !== "rankings" ? drawnLimit : (serverSorts ? drawnLimit : "1000"),
+    });
+    v10Params.set("breakdown_mode", params.get("breakdown_mode") ?? "vc");
+    if (season && season !== "All Seasons") {
+      v10Params.set("season_end_year", String(Number(season.slice(0, 4)) + 1));
+    }
+    let endpoint;
+    if (panel === "rankings") {
+      endpoint = `/api/${serverStat}/rankings`;
+      v10Params.set("metric", ["wins_contributed", "value_contributed"].includes(params.get("sort_by"))
+        ? params.get("sort_by") : "value_contributed");
+      v10Params.set("search", params.get("search") ?? "");
+      if (serverSorts) {
+        v10Params.set("sort_by", params.get("sort_by") ?? "wins_contributed");
+        v10Params.set("sort_direction", params.get("sort_direction") === "asc" ? "asc" : "desc");
+      }
+    } else if (panel === "top-games") {
+      endpoint = `/api/${serverStat}/top-games`;
+      v10Params.set("outcome", String(params.get("outcome") ?? "Both").toLowerCase());
+    } else if (panel === "season-wins-leaders") {
+      endpoint = `/api/${serverStat}/season-wins-leaders`;
+    } else if (panel === "high-value-records") {
+      endpoint = `/api/${serverStat}/high-value-records`;
+      v10Params.set("sort_by", params.get("sort_by") ?? "games_played");
+      v10Params.set("sort_direction", params.get("sort_direction") ?? "desc");
+    } else if (panel === "rolling-trends") {
+      endpoint = `/api/${serverStat}/rolling-trends`;
+      v10Params.set("window_years", params.get("window_years") ?? "3");
+    } else if (panel === "postseason-lift-trends") {
+      endpoint = `/api/${serverStat}/postseason-lift-trends`;
+      v10Params.set("window_years", params.get("window_years") ?? "3");
+    } else {
+      throw new Error(`The ${serverStatLabel} ${panel} view is not available in this panel yet.`);
+    }
+    const response = await fetch(`${endpoint}?${v10Params}`, { signal });
+    if (!response.ok) {
+      const detail = await responseErrorPayload(response);
+      throw new Error(detail?.detail?.message ?? detail?.detail ?? `The ${serverStatLabel} ${panel} panel could not be loaded.`);
+    }
+    const payload = await response.json();
+    let rows = (payload.rows ?? []).map((row) => ({
+      ...row,
+      minutes_played: Number(row.seconds_played ?? row.actual_seconds ?? 0) / 60,
+      teams: teamRecords(row.team_ids, row.team_abbreviations),
+      team: row.team_id
+        ? teamRecord(row.team_id, { abbreviation: row.team_abbreviation })
+        : row.team,
+      opponent: row.opponent_id
+        ? teamRecord(row.opponent_id, { abbreviation: row.opponent_abbreviation })
+        : row.opponent,
+    }));
+    if (panel === "rankings") {
+      const sortBy = params.get("sort_by") ?? "wins_contributed";
+      const direction = params.get("sort_direction") === "asc" ? 1 : -1;
+      // The Offense, Defense and Other columns show wins-only amounts in the
+      // Wins Contributed view, so they must sort by those same amounts.
+      const breakdownMode = params.get("breakdown_mode") ?? "vc";
+      rows = rows.map((row) => ({
+        ...row,
+        ...displayedResponsibilityAliases(row, breakdownMode),
+      }));
+      // The endpoint already ordered and cut the page when it can, and the
+      // order is the same rule either way: the column, then the player id.
+      if (!serverSorts) {
+        rows = rows.sort((left, right) => {
+          const comparison = (Number(left[sortBy] ?? 0) - Number(right[sortBy] ?? 0)) * direction;
+          return comparison || Number(left.player_id) - Number(right.player_id);
+        }).slice(0, Number(params.get("limit") ?? 100));
+      }
+    }
+    return {
+      ...payload,
+      stat_version: serverStat,
+      run_id: payload.source?.run_id,
+      release_id: payload.source?.runtime?.deployment_receipt,
+      configuration_receipt: payload.source?.configuration_receipt,
+      calculation_receipt: payload.source?.calculation_receipt,
+      phase: params.get("phase") ?? "All",
+      garbage_time_mode: params.get("garbage_time_mode") ?? "competitive",
+      breakdown_mode: params.get("breakdown_mode") ?? "vc",
+      season,
+      selected_seasons: season ? [season] : [],
+      rows,
+    };
+  }
   if (!experimentId) {
     const response = await fetch(`${url}?${params}`, { signal });
     if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
+      const payload = await responseErrorPayload(response);
       throw new Error(payload.detail || `The ${panel} panel could not be loaded.`);
     }
     return response.json();
+  }
+  if (isServerV10Experiment(experimentId)) {
+    if (panel !== "rankings") {
+      throw new Error(`The persisted defensive experiment does not provide the ${panel} panel.`);
+    }
+    const serverSource = serverExperiment(experimentId);
+    const serverParams = new URLSearchParams({
+      time_mode: params.get("garbage_time_mode") || "competitive",
+      schedule: params.get("phase") || "All",
+      search: params.get("search") || "",
+      sort_by: params.get("sort_by") || "wins_contributed",
+      sort_direction: params.get("sort_direction") || "desc",
+      limit: "1000",
+      compact: "true",
+    });
+    const serverSeason = params.get("season");
+    if (serverSeason && serverSeason !== "All Seasons") {
+      serverParams.set("season_end_year", String(seasonEndYearFromDashboardValue(serverSeason)));
+    }
+    const serverApiRoot = ({
+      genuine: "/api/v10-genuine-experiments",
+      "unbounded-side-budget": "/api/v10-unbounded-side-budget-experiments",
+      legacy: "/api/v10-experiments",
+    })[serverSource?.server_experiment_api] || "/api/v10-experiments";
+    const requestUrl = `${serverApiRoot}/arms/${encodeURIComponent(experimentId)}/rankings?${serverParams}`;
+    throwIfRequestAborted(signal);
+    let result = state.serverExperimentRankingCache.get(requestUrl);
+    if (!result) {
+      const response = await fetch(requestUrl, { signal });
+      if (!response.ok) {
+        const detail = await responseErrorPayload(response);
+        throw new Error(detail.detail || "The persisted experiment rankings could not be loaded.");
+      }
+      result = await response.json();
+      if (state.serverExperimentRankingCache.size >= 64) {
+        state.serverExperimentRankingCache.delete(
+          state.serverExperimentRankingCache.keys().next().value,
+        );
+      }
+      state.serverExperimentRankingCache.set(requestUrl, result);
+    }
+    throwIfRequestAborted(signal);
+    const sortBy = params.get("sort_by") || "wins_contributed";
+    const breakdownMode = params.get("breakdown_mode") || "vc";
+    const direction = params.get("sort_direction") === "asc" ? 1 : -1;
+    const limit = Number(params.get("limit") || 100);
+    const rows = (result.rows || []).map((row) => {
+      const value = Number(row.value_contributed || 0);
+      const winsValue = Number(row.wins_contributed || 0);
+      const offense = Number(row.offense_value_contributed || 0);
+      const defense = Number(row.defense_value_contributed || 0);
+      const other = Number(row.other_value_contributed || 0);
+      return {
+        ...row,
+        ...displayedResponsibilityAliases(row, breakdownMode),
+        teams: teamRecords(row.team_ids, row.team_abbreviations),
+        hustle_value: 0,
+        offensive_value_contributed: offense,
+        defensive_value_contributed: defense,
+        other_value_contributed: other,
+        offensive_wins_contributed: Number(row.offensive_wins_contributed ?? 0),
+        defensive_wins_contributed: Number(row.defensive_wins_contributed ?? 0),
+        other_wins_contributed: Number(row.other_wins_contributed ?? 0),
+        offensive_value_contributed_pct: value ? offense / value * 100 : 0,
+        defensive_value_contributed_pct: value ? defense / value * 100 : 0,
+        other_value_contributed_pct: value ? other / value * 100 : 0,
+        offensive_wins_contributed_pct: winsValue
+          ? Number(row.offensive_wins_contributed || 0) / winsValue * 100 : 0,
+        defensive_wins_contributed_pct: winsValue
+          ? Number(row.defensive_wins_contributed || 0) / winsValue * 100 : 0,
+        other_wins_contributed_pct: winsValue
+          ? Number(row.other_wins_contributed || 0) / winsValue * 100 : 0,
+        value_per_game_rank: null,
+        postseason_value_per_game_difference: null,
+        postseason_rank_change: null,
+        side_context_raw_value: null,
+        general_offense_context_value: null,
+        teammate_offense_context_value: null,
+        opponent_defense_context_value: null,
+        general_defense_context_value: null,
+        teammate_defense_context_value: null,
+        opponent_offense_context_value: null,
+      };
+    }).sort((left, right) => {
+      const difference = (Number(left[sortBy] ?? 0) - Number(right[sortBy] ?? 0)) * direction;
+      return difference || Number(left.player_id) - Number(right.player_id);
+    }).slice(0, limit).map((row, index) => ({
+      ...row,
+      rank: Number.isFinite(Number(row.rank)) ? Number(row.rank) : index + 1,
+    }));
+    return {
+      rows,
+      run_id: experimentId,
+      release_id: result.arm?.suite_id,
+      configuration_receipt: result.arm?.arm_receipt,
+      calculation_receipt: result.arm?.content_sha256,
+      comparison_arm_slug: result.comparison_arm_slug,
+      ranking_metric: result.ranking_metric,
+      stat_version: "original",
+      phase: params.get("phase") || "All",
+      garbage_time_mode: params.get("garbage_time_mode") || "competitive",
+      breakdown_mode: params.get("breakdown_mode") || "vc",
+      season: params.get("season") || "2025-26",
+      selected_seasons: ["2025-26"],
+    };
   }
   if (!state.experimentClient?.queryRankings) {
     throw new Error(
@@ -596,11 +1119,22 @@ function isV8() {
     || OFFICIAL_RANKING_SLUGS.has(elements.statVersion.value);
 }
 
+function isV11() {
+  return elements.statVersion.value === "v11";
+}
+
+function isV11Shaped() {
+  return V11_SHAPED_STAT_VERSIONS.has(elements.statVersion.value);
+}
+
 function hasPlayerContext() {
-  return Boolean(contextSeasonValue()) && (
-    OFFICIAL_RANKING_SLUGS.has(elements.statVersion.value)
-      || (isFullLineupExperiment() && Boolean(state.experimentClient?.queryRankings))
-  );
+  if (!contextSeasonValue()) return false;
+  // V11 and V12 answer the dialog from their own endpoints; V10 has none.
+  if (isServerStatVersion()) return isV11Shaped();
+  return OFFICIAL_RANKING_SLUGS.has(elements.statVersion.value)
+    || (isFullLineupExperiment()
+      && !isServerV10Experiment()
+      && Boolean(state.experimentClient?.queryRankings));
 }
 
 function selectedContextRunId() {
@@ -625,7 +1159,8 @@ function restorePlayerContextSelection(params) {
     return false;
   }
   state.selectedContextPlayerId = playerId;
-  state.selectedContextPlayerName = `NBA ID ${playerId}`;
+  // The name arrives with the context payload; an id is never shown.
+  state.selectedContextPlayerName = "";
   const page = Number(params.get("context_page"));
   state.contextPage = Number.isInteger(page) && page > 0 ? page : 1;
   if (!elements.contextDialog.open) elements.contextDialog.showModal();
@@ -636,9 +1171,96 @@ function selectedBreakdownMode() {
   return elements.breakdownMode.value === "wc" ? "wc" : "vc";
 }
 
+// The most rows a single season's ranking endpoint will answer with, which is
+// more than any season has ever had, and the cap a merged multi-season
+// selection is held to once the per-player rows have been added up.
+const API_RANKING_ROW_CEILING = 1000;
+const MERGED_RANKING_ROW_CEILING = 100000;
+
+// "Show" is the table's own population control, and every chart above the
+// total-history section draws exactly what it leaves in the table. `null` is
+// "all of them".
+function selectedRankingLimit() {
+  const requested = elements.limit.value;
+  return requested === "all" ? null : Number(requested) || 25;
+}
+
+// --- collapsible chart panels ---------------------------------------------------
+//
+// Four disclosures: two charts of the table's own selection (offensive and
+// defensive contribution, and regular season against postseason) and the two
+// total-history charts. The type charts live on the season page. All four
+// start closed, none of them fetches or draws
+// anything until it is first opened, and which ones are open travels in the
+// query string so a reload or a shared link brings the same page back.
+
+const OPEN_PANEL_STORAGE_KEY = "value-contributed:rankings-open-panels";
+
+function panelElement(key) {
+  if (key === "trends") return elements.trendsSection;
+  if (key === "lift") return elements.liftSection;
+  return elements.chartPanels.get(key) ?? null;
+}
+
+function panelKeys() {
+  return state.rankingsVisualModule?.ALL_PANEL_KEYS ?? [];
+}
+
+function currentOpenPanels() {
+  return panelKeys().filter((key) => panelElement(key)?.open);
+}
+
+function rememberOpenPanels() {
+  const serialize = state.rankingsVisualModule?.serializeOpenPanels;
+  if (!serialize) return;
+  try {
+    sessionStorage.setItem(OPEN_PANEL_STORAGE_KEY, serialize(currentOpenPanels()));
+  } catch {
+    // A browser that refuses session storage still keeps the query string.
+  }
+}
+
+function applyOpenPanels(keys) {
+  const open = new Set(keys ?? []);
+  for (const key of panelKeys()) {
+    const panel = panelElement(key);
+    if (panel) panel.open = open.has(key);
+  }
+}
+
+function restoreOpenPanels(params) {
+  const parse = state.rankingsVisualModule?.parseOpenPanels;
+  if (!parse) return;
+  let stored = null;
+  try {
+    stored = sessionStorage.getItem(OPEN_PANEL_STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+  applyOpenPanels(parse(`?${params.toString()}`, { stored }));
+}
+
+// Which identity the dialog binds to.  V9 and the browser experiments have one
+// run behind the whole table, so the run id is the identity.  V11 publishes one
+// run per season and no run id above them, so it binds on the engine version
+// the rankings came from instead — together with the stat version and the scope
+// already in the signature.  Until the rankings have reported an engine version
+// there is nothing to bind to, and the scope alone decides.
+function contextScopeIdentity(payload = null) {
+  if (!isV11Shaped()) {
+    return { run_id: payload ? payload.run_id : state.rankingsRunId };
+  }
+  if (!state.rankingsEngineVersion) return { engine_version: null };
+  return {
+    engine_version: payload
+      ? (payload.source?.engine_version ?? null)
+      : state.rankingsEngineVersion,
+  };
+}
+
 function currentContextScopeSignature() {
   return JSON.stringify({
-    run_id: state.rankingsRunId,
+    ...contextScopeIdentity(),
     player_id: state.selectedContextPlayerId,
     season: contextSeasonValue(),
     phase: elements.phase.value,
@@ -651,7 +1273,7 @@ function currentContextScopeSignature() {
 
 function responseContextScopeSignature(payload) {
   return JSON.stringify({
-    run_id: payload.run_id,
+    ...contextScopeIdentity(payload),
     player_id: String(payload.player_id),
     season: payload.season,
     phase: payload.phase,
@@ -735,22 +1357,22 @@ function fixedDisplay(value, precision) {
 
 function updateV8Presentation() {
   const active = isV8();
+  // The hero says "Value Contributed" and nothing else: which statistic is
+  // answering is on the Ranking control and in the table card's own header.
   document.body.classList.toggle("v8-dashboard", active);
   document.body.classList.toggle("original-dashboard", active);
   elements.rankingsTable.classList.toggle("v8-rankings", active);
   elements.rankingsTable.classList.toggle("original-rankings", active);
   elements.breakdownControl.hidden = !active;
-  elements.sideGroupHeading.colSpan = active ? 3 : 4;
+  elements.sideGroupHeading.colSpan = active ? 2 : 3;
   elements.sideGroupHeading.textContent = active ? "Responsibility" : "Value source";
-  elements.contextGroupHeading.colSpan = state.contextColumnsExpanded ? 7 : 3;
-  elements.contextGroupHeading.textContent = state.contextColumnsExpanded
-    ? "Six-factor context"
-    : "Context";
+  elements.contextGroupHeading.colSpan = 3;
+  elements.contextGroupHeading.textContent = "Context";
   elements.v8ContextOnly.forEach((element) => {
     element.hidden = !active;
   });
-  const headingLabels = ["Offense", "Defense", "Other"];
-  [elements.offenseHeading, elements.defenseHeading, elements.otherHeading]
+  const headingLabels = ["Offense", "Defense"];
+  [elements.offenseHeading, elements.defenseHeading]
     .forEach((heading, index) => {
       const firstText = heading?.querySelector("button")?.childNodes?.[0];
       if (firstText) firstText.nodeValue = `${headingLabels[index]} `;
@@ -788,48 +1410,39 @@ function updateV8Presentation() {
     const option = elements.mobileSort.querySelector(`option[value="${sort}"]`);
     if (option) option.disabled = customSeasonRange;
   });
-  updateColumnGroupPresentation();
   elements.rankingsDefinition.innerHTML = active
     ? "<strong>Responsibility</strong> is a separate exact Offense, Defense, and Other breakdown; those three nonnegative amounts add to the selected final VC or WC. <strong>Context</strong> starts collapsed with Raw VC, Offense Context, and Defense Context. Offense Context is General O + Teammate O + Opponent O. Defense Context is General D + Teammate D + Opponent D. The opponent labels name the side they affect: Opponent O is derived from opponent defense, and Opponent D is derived from opponent offense. Expanding replaces the two context totals with those six distinct factors—Raw VC is never repeated—and Raw VC plus the six changes closes to the same final total."
     : "<strong>Value Contributed</strong> sums a player’s final team-value share in wins and losses. <strong>Wins Contributed</strong> sums that same value only when the player’s team won; <strong>Loss VC</strong> is the remainder from losses.";
   elements.rankingsGuideSummary.textContent = active
     ? "Responsibility splits final value; context explains the bridge from Raw VC."
     : "Wins VC is value in wins; VC/game uses all selected appearances.";
+  // V12 says what it changed and what it does not have yet, in the guide the
+  // table already carries, so a reader never takes its empty context columns
+  // for a measurement.  Its player types and similar players are built.
+  const description = state.sourceDescriptions?.[elements.statVersion.value];
+  if (elements.statVersion.value === "v12" && description) {
+    elements.rankingsDefinition.insertAdjacentHTML(
+      "beforeend",
+      ` <strong>V12.</strong> ${escapeHtml(description)} V12 does not have the six-factor context breakdown yet, so the Raw VC and context columns show a dash.`,
+    );
+  }
+  // V13 describes itself the same way; it has its own six-factor context
+  // breakdown, so its Raw VC and context columns are filled like V11's.
+  if (elements.statVersion.value === "v13" && description) {
+    elements.rankingsDefinition.insertAdjacentHTML(
+      "beforeend",
+      ` <strong>V13.</strong> ${escapeHtml(description)}`,
+    );
+  }
 }
 
-function updateColumnGroupPresentation() {
-  const contextExpanded = isV8() && state.contextColumnsExpanded;
-  elements.rankingsTable.classList.toggle(
-    "record-columns-expanded",
-    state.recordColumnsExpanded,
-  );
-  elements.rankingsTable.classList.toggle(
-    "context-columns-expanded",
-    contextExpanded,
-  );
-  elements.recordColumnsToggle.setAttribute(
-    "aria-expanded",
-    String(state.recordColumnsExpanded),
-  );
-  elements.recordColumnsToggle.querySelector(".column-group-toggle-state").textContent =
-    state.recordColumnsExpanded ? "Hide" : "Show";
-  elements.contextColumnsToggle.setAttribute(
-    "aria-expanded",
-    String(contextExpanded),
-  );
-  elements.contextColumnsToggle.querySelector(".column-group-toggle-state").textContent =
-    contextExpanded ? "Collapse" : "Expand";
-  elements.contextGroupHeading.colSpan = contextExpanded ? 7 : 3;
-  elements.contextGroupHeading.textContent = contextExpanded
-    ? "Six-factor context"
-    : "Context";
-}
-
+// The record columns are always shown and always last; the context group is
+// the raw amount and the two side totals, and the six per-factor columns live
+// in the context dialog rather than in the table.
 function visibleRankingColumnCount() {
-  const baseColumns = isV8() ? 12 : 13;
-  return baseColumns
-    + (state.recordColumnsExpanded ? 3 : 0)
-    + (isV8() ? (state.contextColumnsExpanded ? 7 : 3) : 0);
+  // Rank, Player, four value columns, the value sources, and the three record
+  // columns; a context statistic adds Raw VC and the two side totals.
+  return (isV8() ? 11 : 12) + (isV8() ? 3 : 0);
 }
 
 function signedNumber(value, suffix = "") {
@@ -895,9 +1508,8 @@ function setLoading() {
   elements.error.hidden = true;
   elements.body.innerHTML = `
     <tr class="loading-row">
-      <td colspan="${visibleRankingColumnCount()}">Reading the canonical calculation…</td>
+      <td colspan="${visibleRankingColumnCount()}">${({ v12: "Loading V12 rankings…", v13: "Loading V13 rankings…" })[apiStatVersion()] ?? "Reading the canonical calculation…"}</td>
     </tr>`;
-  elements.meta.textContent = "Loading…";
 }
 
 function clearSupportingPanelBinding(node) {
@@ -920,7 +1532,6 @@ function setSeasonWinsLoading() {
     <tr class="loading-row">
       <td colspan="6">Reading season leaders…</td>
     </tr>`;
-  elements.seasonWinsMeta.textContent = "Loading season leaders…";
 }
 
 function setTopGamesLoading() {
@@ -930,7 +1541,6 @@ function setTopGamesLoading() {
     <tr class="loading-row">
       <td colspan="9">Reading the highest single-game values…</td>
     </tr>`;
-  elements.topGamesMeta.textContent = "Loading single-game leaders…";
 }
 
 function setHighValueRecordsLoading() {
@@ -938,16 +1548,16 @@ function setHighValueRecordsLoading() {
   elements.highValueRecordsError.hidden = true;
   elements.highValueRecordsBody.innerHTML = `
     <tr class="loading-row">
-      <td colspan="7">Reading .400-plus game records…</td>
+      <td colspan="7">Reading .500-plus game records…</td>
     </tr>`;
   elements.highValuePlayerCount.textContent = "—";
-  elements.highValueRecordsMeta.textContent = "Loading qualifying-player records…";
 }
 
 function setTrendLoading() {
+  const mobileTrend = document.querySelector("#mobile-trend-preview");
+  if (mobileTrend) mobileTrend.textContent = "Loading career trends…";
   clearSupportingPanelBinding(elements.trendChart);
   elements.trendError.hidden = true;
-  elements.trendMeta.textContent = `Loading ${selectedTrendWindow()}-year history…`;
   elements.trendLegend.innerHTML = "";
   elements.trendChart.innerHTML = `
     <text class="chart-loading" x="560" y="290" text-anchor="middle">
@@ -956,10 +1566,11 @@ function setTrendLoading() {
 }
 
 function setLiftLoading() {
+  const mobileLift = document.querySelector("#mobile-lift-preview");
+  if (mobileLift) mobileLift.textContent = "Reading postseason rank changes…";
   state.liftPayload = null;
   clearSupportingPanelBinding(elements.liftChart);
   elements.liftError.hidden = true;
-  elements.liftMeta.textContent = `Loading ${selectedLiftWindow()}-year rank changes…`;
   elements.liftLegend.innerHTML = "";
   elements.liftChart.innerHTML = `
     <text class="chart-loading" x="560" y="290" text-anchor="middle">
@@ -1025,9 +1636,91 @@ function setHighValueSortHighlight() {
   elements.highValueMobileSortDirection.setAttribute(
     "aria-label",
     state.highValueSortDirection === "asc"
-      ? "Sort .400-plus records low to high; tap to reverse"
-      : "Sort .400-plus records high to low; tap to reverse",
+      ? "Sort .500-plus records low to high; tap to reverse"
+      : "Sort .500-plus records high to low; tap to reverse",
   );
+}
+
+// How a season selection is named — in the table card's header row and in the
+// seasons control's own summary, from one rule so the two cannot disagree. One
+// season is its own label, the whole history is "All Seasons", and several
+// seasons are the first season's opening year to the last season's closing year
+// beside how many were chosen: 2013-14 through 2017-18 reads
+// "2013–2018 · 5 seasons" rather than "2013-14-2017-18". The count is always
+// said, because a range with holes in it would otherwise claim seasons the
+// table is not showing.
+function seasonStartYear(season) {
+  const year = Number(String(season ?? "").slice(0, 4));
+  return Number.isFinite(year) && year > 1900 ? year : null;
+}
+
+function seasonRangeHeading(seasons, { all = false } = {}) {
+  if (all) return "All Seasons";
+  const list = (seasons ?? []).filter(Boolean);
+  if (!list.length) return "Player value";
+  if (list.length === 1) return String(list[0]);
+  const years = list.map(seasonStartYear).filter((year) => year !== null)
+    .sort((left, right) => left - right);
+  if (!years.length) return `${list.length} seasons`;
+  const range = `${years[0]}\u2013${years[years.length - 1] + 1}`;
+  return `${range} \u00b7 ${years.length} seasons`;
+}
+
+// The schedule and the game-time setting, said the way a header says them
+// rather than the way a request spells them.
+const SCHEDULE_HEADING_LABELS = {
+  "All": "Full season",
+  "Regular Season": "Regular season",
+  "PlayIn": "Play-In",
+  "Playoffs": "Playoffs",
+  "Postseason": "Postseason",
+};
+
+const GAME_TIME_HEADING_LABELS = {
+  competitive: "Garbage time excluded",
+  all_minutes: "Garbage time included",
+};
+
+// The card's header row says the whole scope in words \u2014 the seasons, then the
+// schedule, then whether garbage time is counted, and, only where a reader can
+// choose it, which responsibility view is on screen. Pure, so a test can read
+// it without a browser.
+function resultsScopeLine({ seasons, all = false, phase, garbageTime, view = null }) {
+  return [
+    seasonRangeHeading(seasons, { all }),
+    SCHEDULE_HEADING_LABELS[phase] ?? null,
+    GAME_TIME_HEADING_LABELS[garbageTime] ?? null,
+    view,
+  ].filter(Boolean).join(" \u00b7 ");
+}
+
+function responsibilityViewLabel() {
+  if (!elements.breakdownControl || elements.breakdownControl.hidden) return null;
+  return elements.breakdownMode?.value === "wc"
+    ? "Wins Contributed" : "Value Contributed";
+}
+
+function updateResultsHeading() {
+  if (!elements.resultsScopeTitle) return;
+  const seasons = selectedRankingSeasons();
+  elements.resultsScopeTitle.textContent = resultsScopeLine({
+    seasons,
+    all: seasonSelectionIsAll(seasons),
+    phase: elements.phase?.value,
+    garbageTime: elements.garbageTimeMode?.value,
+    view: responsibilityViewLabel(),
+  });
+}
+
+// The Rank column counts the sorted table from the top, so sorting by Defense
+// renumbers it 1..N down the column the reader chose. The ranking the metric
+// itself publishes stays on the row (`row.rank`) for the ranking card and the
+// context dialog; only the cell changed.
+function displayRank(row, index) {
+  const place = Number(index);
+  if (Number.isFinite(place) && place >= 0) return place + 1;
+  const published = Number(row?.rank);
+  return Number.isFinite(published) ? published : "—";
 }
 
 function renderRows(rows) {
@@ -1076,28 +1769,34 @@ function renderRows(rows) {
           "other_value_contributed_pct",
         ];
     const target = Number(winsMode ? row.wins_contributed : row.value_contributed);
-    const amounts = displayClosedTriplet(
-      amountKeys.map((key) => row[key]),
-      target,
-      3,
+    const rawAmounts = amountKeys.map((key) => row[key]);
+    const amountsAvailable = rawAmounts.every(
+      (value) => value !== null && value !== undefined,
     );
+    const amounts = amountsAvailable
+      ? displayClosedTriplet(rawAmounts, target, 3)
+      : [null, null, null];
     const rawPercentages = pctKeys.map((key) => row[key]);
     const percentages = rawPercentages.every(
       (value) => value !== null && value !== undefined,
     )
-      ? displayClosedTriplet(rawPercentages, 100, 1)
+      ? Math.abs(target) > 1e-12
+        ? displayClosedTriplet(rawPercentages, 100, 1)
+        : [0, 0, 0]
       : [null, null, null];
-    const sides = ["Offense", "Defense", "Other"];
-    const classes = ["offense", "defense", "other"];
-    return sides
-      .map(
+    // The closing keeps all three amounts, so the rounding residual still lands
+    // where it belongs; only Offense and Defense are drawn. V11's other side is
+    // always zero, so the two shown amounts still add to the selected total.
+    const sides = ["Offense", "Defense"];
+    const classes = ["offense", "defense"];
+    const cells = sides.map(
         (side, index) => `
           <td class="numeric category-cell category-${classes[index]}-cell" data-label="${side} ${winsMode ? "WC" : "VC"}">
-            <span class="category-value">${fixedDisplay(amounts[index], 3)}</span>
+            <span class="category-value">${amounts[index] === null ? "—" : fixedDisplay(amounts[index], 3)}</span>
             <span class="category-percent">${percentages[index] === null ? "—" : `${fixedDisplay(percentages[index], 1)}%`}</span>
           </td>`,
-      )
-      .join("");
+      );
+    return cells.join("");
   };
   const v8ContextCells = (row) => {
     const winsMode = selectedBreakdownMode() === "wc";
@@ -1112,11 +1811,12 @@ function renderRows(rows) {
     ];
     const rawAmount = row.side_context_raw_value ?? row.raw_vc;
     const rawAmounts = [rawAmount, ...expanded.map(([, key]) => row[key])];
-    const closedExpanded = rawAmounts.every(
+    const contextAvailable = rawAmounts.every(
       (value) => value !== null && value !== undefined,
-    )
+    );
+    const closedExpanded = contextAvailable
       ? displayClosedTriplet(rawAmounts, target, 3)
-      : rawAmounts;
+      : rawAmounts.map(() => null);
     const expandedPercentages = closedExpanded.every(
       (value) => value !== null && value !== undefined,
     ) && Math.abs(target) > 1e-12
@@ -1130,12 +1830,14 @@ function renderRows(rows) {
       .reduce((total, value) => total + Number(value || 0), 0);
     const defenseContext = closedExpanded.slice(4, 7)
       .reduce((total, value) => total + Number(value || 0), 0);
-    const collapsedAmounts = displayClosedTriplet(
-      [closedExpanded[0], offenseContext, defenseContext],
-      target,
-      3,
-    );
-    const collapsedPercentages = Math.abs(target) > 1e-12
+    const collapsedAmounts = contextAvailable
+      ? displayClosedTriplet(
+          [closedExpanded[0], offenseContext, defenseContext],
+          target,
+          3,
+        )
+      : [null, null, null];
+    const collapsedPercentages = contextAvailable && Math.abs(target) > 1e-12
       ? displayClosedTriplet(
           collapsedAmounts.map((value) => (Number(value) / target) * 100),
           100,
@@ -1147,10 +1849,13 @@ function renderRows(rows) {
       const percentSignClass = Number(percentage) < 0 ? " negative-value" : "";
       return `
         <td class="numeric category-cell context-composition-cell context-column ${visibilityClass} context-${className}-cell" data-label="${label} ${winsMode ? "WC" : "VC"}">
-          <span class="category-value${amountSignClass}">${amount === null || amount === undefined ? "—" : fixedDisplay(amount, 3)}</span>
-          <span class="category-percent${percentSignClass}">${percentage === null || percentage === undefined ? "—" : `${fixedDisplay(percentage, 1)}%`}</span>
+          <span class="category-percent context-primary-percentage${percentSignClass}">${percentage === null || percentage === undefined ? "—" : `${fixedDisplay(percentage, 1)}%`}</span>
+          <span class="category-value context-raw-amount${amountSignClass}">${amount === null || amount === undefined ? "—" : `raw ${fixedDisplay(amount, 3)}`}</span>
         </td>`;
     };
+    // The six per-factor amounts are still calculated, because the two side
+    // totals are their sums and the closing is over all seven; the table shows
+    // the three summary columns and the Context dialog shows the six.
     return [
       cell({
         label: "Raw",
@@ -1173,73 +1878,68 @@ function renderRows(rows) {
         className: "defense-total",
         visibilityClass: "context-collapsed-column",
       }),
-      ...expanded.map(([label, , className], index) => cell({
-        label,
-        amount: closedExpanded[index + 1],
-        percentage: expandedPercentages[index + 1],
-        className,
-        visibilityClass: "context-expanded-column",
-      })),
     ].join("");
   };
-  const postseasonRankChange = (row) => {
-    if (row.postseason_rank_change === null) {
-      return `<span class="rate-value">—</span><span class="rate-context">No postseason comparison</span>`;
-    }
-    const title = `Regular season: #${row.regular_season_rank}, ${number(row.regular_wins_contributed)} Wins Contributed in ${row.regular_games} games; postseason: #${row.postseason_rank}, ${number(row.postseason_wins_contributed)} Wins Contributed in ${row.postseason_games} games`;
-    return `<span class="rate-value" title="${escapeHtml(title)}">${signedRank(row.postseason_rank_change)}</span><span class="rate-context">#${row.regular_season_rank} → #${row.postseason_rank}</span>`;
-  };
-  const valuePerGameRank = (row) => {
-    if (row.value_per_game_rank === null) {
-      return `<span class="rate-value">—</span>`;
-    }
-    return `<span class="rate-value">#${row.value_per_game_rank}</span><span class="rate-context">Active scope</span>`;
-  };
-  const postseasonValuePerGameDifference = (row) => {
-    if (row.postseason_value_per_game_difference === null) {
-      return `<span class="rate-value">—</span><span class="rate-context">No postseason comparison</span>`;
-    }
-    const regularGameLabel = `${row.regular_games} game${row.regular_games === 1 ? "" : "s"}`;
-    const postseasonGameLabel = `${row.postseason_games} game${row.postseason_games === 1 ? "" : "s"}`;
-    const title = `Regular season: ${number(row.regular_value_per_game)} VC/game in ${regularGameLabel}; postseason: ${number(row.postseason_value_per_game)} VC/game in ${postseasonGameLabel}`;
-    return `<span class="rate-value" title="${escapeHtml(title)}">${signedNumber(row.postseason_value_per_game_difference)}</span><span class="rate-context">${number(row.regular_value_per_game)} → ${number(row.postseason_value_per_game)}</span>`;
-  };
-
   elements.body.innerHTML = rows
-    .map((row) => {
-      const playerName = hasPlayerContext()
-        ? `<span class="player-name view-context" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="${state.selectedContextPlayerId === String(row.player_id)}" data-player-id="${escapeHtml(String(row.player_id))}" data-player-name="${escapeHtml(row.player_name)}">${escapeHtml(row.player_name)}</span>`
-        : `<span class="player-name">${escapeHtml(row.player_name)}</span>`;
+    .map((row, index) => {
+      const teamLinks = row.teams.map((team) => `<a href="${entityAnalyticsUrl("teams", team.id ?? team.team_id)}">${escapeHtml(team.abbreviation)}</a>`).join(" · ");
+      // The name opens the player's page; "Context" opens the dialog beside it,
+      // for every source that can answer one. The Compare link is tabled with
+      // the experiments (note of 2026-09-28), so it is drawn only with the
+      // switch on.
+      const compareAction = EXPERIMENTS_ON
+        ? `<a class="compare-player-link" href="${playerComparisonUrl(row)}">Compare</a>`
+        : "";
+      const contextAction = hasPlayerContext()
+        ? `${compareAction ? '<span class="ranking-context-separator" aria-hidden="true">·</span>' : ""}<span class="compare-player-link view-context" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="${state.selectedContextPlayerId === String(row.player_id)}" data-player-id="${escapeHtml(String(row.player_id))}" data-player-name="${escapeHtml(row.player_name)}">Context</span>`
+        : "";
+      // A phone hides the Context action and its separator, so when nothing
+      // else comes before the teams their separator is hidden with them.
+      const teamsSeparator = compareAction
+        ? '<span aria-hidden="true">·</span>'
+        : contextAction ? '<span class="ranking-context-separator" aria-hidden="true">·</span>' : "";
+      const playerName = `<a class="player-name player-profile-link" href="${entityAnalyticsUrl("players", row.player_id)}">${escapeHtml(row.player_name)}</a><span class="player-row-actions">${compareAction}${contextAction}${teamLinks ? `${teamsSeparator}<span class="player-teams" title="${escapeHtml(row.teams.map((team) => team.name).join(" · "))}">${teamLinks}</span>` : ""}</span>`;
       const sideCells = isV8()
         ? v8ResponsibilityCells(row)
         : `
           <td class="numeric category-cell category-offense-cell" data-label="Offense">${contribution(row.offense_value, Number(row.value_contributed))}</td>
           <td class="numeric category-cell category-defense-cell" data-label="Defense">${contribution(row.defense_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell category-hustle-cell" data-label="Hustle">${contribution(row.hustle_value, Number(row.value_contributed))}</td>
-          <td class="numeric category-cell category-other-cell" data-label="Other">${contribution(row.other_value, Number(row.value_contributed))}</td>`;
+          <td class="numeric category-cell category-hustle-cell" data-label="Hustle">${contribution(row.hustle_value, Number(row.value_contributed))}</td>`;
       return `
         <tr>
-          <td class="rank-number" data-label="Rank">${row.rank}</td>
+          <td class="rank-number" data-label="Rank">${displayRank(row, index)}</td>
           <td class="player-cell">
+            ${mobileCardHeadshot(row.player_id)}
             ${playerName}
-            <span class="player-teams" title="${escapeHtml(row.teams.map((team) => team.name).join(" · "))}">${row.teams.map((team) => escapeHtml(team.abbreviation)).join(" · ")}</span>
           </td>
-          <td class="numeric summary-cell record-column" data-label="GP">${row.games_played}</td>
-          <td class="numeric summary-cell record-column" data-label="Wins">${row.wins}</td>
-          <td class="numeric summary-cell record-column" data-label="Losses">${row.losses}</td>
           <td class="numeric total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
           <td class="numeric total-cell" data-label="VC" title="${row.value_contributed}">${number(row.value_contributed)}</td>
           <td class="numeric total-cell" data-label="Loss VC" title="${row.losses_contributed}">${number(row.losses_contributed)}</td>
           <td class="numeric rate-cell" data-label="VC / game">${rate(row.value_per_game)}</td>
           ${sideCells}
           ${isV8() ? v8ContextCells(row) : ""}
-          <td class="numeric rate-cell comparison-cell" data-label="VC/game rank">${valuePerGameRank(row)}</td>
-          <td class="numeric rate-cell comparison-cell" data-label="Post VC/game difference">${postseasonValuePerGameDifference(row)}</td>
-          <td class="numeric rate-cell comparison-cell" data-label="Post rank change">${postseasonRankChange(row)}</td>
+          <td class="numeric summary-cell" data-label="GP">${row.games_played}</td>
+          <td class="numeric summary-cell" data-label="Wins">${row.wins ?? "—"}</td>
+          <td class="numeric summary-cell" data-label="Losses">${row.losses ?? "—"}</td>
         </tr>`;
     })
     .join("");
 }
+
+function mobileCardHeadshot(playerId) {
+  return `<picture class="ranking-headshot" aria-hidden="true">
+    <source media="(max-width: 760px)" srcset="https://cdn.nba.com/headshots/nba/latest/260x190/${encodeURIComponent(playerId)}.png" />
+    <img src="${RANKING_HEADSHOT_FALLBACK}" alt="" width="40" height="40" loading="lazy" decoding="async" />
+  </picture>`;
+}
+
+[elements.body, elements.topGamesBody, elements.seasonWinsBody].forEach(body => body.addEventListener("error", (event) => {
+  const image = event.target;
+  if (!image.matches?.(".ranking-headshot img")) return;
+  const source = image.closest("picture").querySelector("source");
+  if (source) { source.remove(); image.src = RANKING_HEADSHOT_FALLBACK; }
+  else image.hidden = true;
+}, true));
 
 function displayGameDate(value) {
   const [year, month, day] = String(value).split("-").map(Number);
@@ -1263,7 +1963,7 @@ function renderTopGames(rows) {
   if (!rows.length) {
     elements.topGamesBody.innerHTML = `
       <tr class="empty-row">
-        <td colspan="9">No games match these filters.</td>
+        <td colspan="10">No games match these filters.</td>
       </tr>`;
     return;
   }
@@ -1277,8 +1977,8 @@ function renderTopGames(rows) {
         <tr data-panel-row="${supportingPanelDatum(row)}">
           <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
-            <span class="player-name">${escapeHtml(row.player_name)}</span>
-            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
+            ${mobileCardHeadshot(row.player_id)}
+            <a class="player-name" href="${topGameProfileHref(row)}">${escapeHtml(row.player_name)}</a>
           </td>
           <td class="game-season-cell" data-label="Season">
             <strong>${escapeHtml(row.season)}</strong>
@@ -1303,9 +2003,23 @@ function renderTopGames(rows) {
           <td class="numeric game-value-cell" data-label="Value Contributed" title="${row.value_contributed}">
             ${number(row.value_contributed)}
           </td>
+          <td data-label="Build"><a class="game-anatomy-button" href="${topGameProfileHref(row)}">See build</a></td>
         </tr>`;
     })
     .join("");
+}
+
+function topGameProfileHref(row) {
+  const params = new URLSearchParams({
+    source: elements.statVersion.value === "original" ? "v9" : elements.statVersion.value,
+    player_id: String(row.player_id),
+    season: String(row.season),
+    schedule: "all",
+    time_mode: elements.garbageTimeMode.value,
+    metric: "wins_contributed",
+    game_id: String(row.game_id),
+  });
+  return `/players?${params}`;
 }
 
 function seasonWinsPhase() {
@@ -1320,7 +2034,7 @@ function renderSeasonWinsLeaders(rows) {
   elements.seasonWinsBody.innerHTML = rows.map((row) => `
     <tr data-panel-row="${supportingPanelDatum(row)}">
       <td class="rank-number" data-label="Rank">${row.rank}</td>
-      <td class="player-cell"><span class="player-name">${escapeHtml(row.player_name)}</span><span class="player-teams" title="${escapeHtml(row.teams.map((team) => team.name).join(" · "))}">${escapeHtml(row.season)} · ${row.teams.map((team) => escapeHtml(team.abbreviation)).join(" · ")}</span></td>
+      <td class="player-cell">${mobileCardHeadshot(row.player_id)}<span class="player-name">${escapeHtml(row.player_name)}</span><span class="player-teams" title="${escapeHtml(row.teams.map((team) => team.name).join(" · "))}">${escapeHtml(row.season)} · ${row.teams.map((team) => escapeHtml(team.abbreviation)).join(" · ")}</span></td>
       <td class="numeric" data-label="Games">${row.games_played}</td>
       <td class="numeric season-wins-total-cell" data-label="Wins VC" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
       <td class="numeric season-wins-offense-cell" data-label="Offense" title="${row.offensive_wins_contributed}">${number(row.offensive_wins_contributed)}<span class="category-percent">${number((row.offensive_wins_contributed / row.wins_contributed) * 100)}%</span></td>
@@ -1332,13 +2046,12 @@ async function loadSeasonWinsLeaders() {
   state.seasonWinsController?.abort();
   state.seasonWinsController = new AbortController();
   setSeasonWinsLoading();
-  const phaseLabel = {"Regular Season": "Regular season", Postseason: "Postseason", All: "Full season"}[seasonWinsPhase()];
   try {
     const params = new URLSearchParams({
       stat_version: apiStatVersion(),
       phase: seasonWinsPhase(),
       garbage_time_mode: elements.garbageTimeMode.value,
-      limit: "15",
+      limit: selectedSeasonWinsLimit(),
     });
     addSelectedExperimentParam(params);
     const payload = await requestRankingPanel({
@@ -1349,12 +2062,10 @@ async function loadSeasonWinsLeaders() {
     });
     renderSeasonWinsLeaders(payload.rows);
     bindSupportingPanelPayload(elements.seasonWinsBody, payload);
-    elements.seasonWinsMeta.textContent = `${supportingStatVersionLabel()} · ${phaseLabel} · Top 15 player-seasons`;
     return true;
   } catch (error) {
     if (error.name === "AbortError") return false;
     elements.seasonWinsBody.innerHTML = "";
-    elements.seasonWinsMeta.textContent = "";
     elements.seasonWinsError.textContent = error.message;
     elements.seasonWinsError.hidden = false;
     return false;
@@ -1365,7 +2076,7 @@ function renderHighValueRecords(rows) {
   if (!rows.length) {
     elements.highValueRecordsBody.innerHTML = `
       <tr class="empty-row">
-        <td colspan="7">No players have a .400-plus game.</td>
+        <td colspan="7">No players have a .500-plus game.</td>
       </tr>`;
     return;
   }
@@ -1377,9 +2088,8 @@ function renderHighValueRecords(rows) {
           <td class="rank-number" data-label="Rank">${row.rank}</td>
           <td class="player-cell">
             <span class="player-name">${escapeHtml(row.player_name)}</span>
-            <span class="player-id">NBA ID ${escapeHtml(row.player_id)}</span>
           </td>
-          <td class="numeric high-value-summary-cell" data-label="Games ≥ .400">${row.games_played}</td>
+          <td class="numeric high-value-summary-cell" data-label="Games ≥ .500">${row.games_played}</td>
           <td class="numeric high-value-summary-cell" data-label="Wins">${row.wins}</td>
           <td class="numeric high-value-total-cell" data-label="Value Contributed" title="${row.value_contributed}">${number(row.value_contributed)}</td>
           <td class="numeric high-value-total-cell" data-label="Wins Contributed" title="${row.wins_contributed}">${number(row.wins_contributed)}</td>
@@ -1404,46 +2114,6 @@ function scheduleLabel(phase) {
     Postseason: "Postseason",
   };
   return labels[phase] ?? phase;
-}
-
-function sortLabel() {
-  const labels = {
-    value_contributed: "Value Contributed",
-    wins_contributed: "Wins Contributed",
-    losses_contributed: "Loss VC",
-    value_per_game: "VC per game",
-    value_per_game_rank: "VC/game rank",
-    postseason_value_per_game_difference: "postseason VC/game difference",
-    postseason_rank_change: "postseason rank change",
-    games_played: "games played",
-    wins: "wins",
-    losses: "losses",
-    offense_value: "Offense",
-    defense_value: "Defense",
-    hustle_value: "Hustle",
-    other_value: "Other",
-    side_context_raw_value: "Context Raw VC",
-    offense_context_value: "Offense Context",
-    defense_context_value: "Defense Context",
-    general_offense_context_value: "Context General O",
-    general_defense_context_value: "Context General D",
-    teammate_offense_context_value: "Context Teammate O",
-    opponent_offense_context_value: "Context Opponent D",
-    teammate_defense_context_value: "Context Teammate D",
-    opponent_defense_context_value: "Context Opponent O",
-  };
-  return `${labels[state.sortBy]} ${state.sortDirection === "asc" ? "low to high" : "high to low"}`;
-}
-
-function highValueSortLabel() {
-  const labels = {
-    games_played: "qualifying games",
-    wins: "wins",
-    value_contributed: "Value Contributed",
-    wins_contributed: "Wins Contributed",
-    winning_percentage: "winning percentage",
-  };
-  return `${labels[state.highValueSortBy]} ${state.highValueSortDirection === "asc" ? "low to high" : "high to low"}`;
 }
 
 function resetExpandedChart({ restoreFocus = true } = {}) {
@@ -1527,8 +2197,55 @@ function setupMobileCharts() {
   });
 }
 
+function renderContextPagination(pagination) {
+  elements.contextPageStatus.textContent = pagination.total_pages
+    ? `Page ${pagination.page} of ${pagination.total_pages}`
+    : "No pages";
+  elements.contextPagePrevious.disabled = pagination.page <= 1;
+  elements.contextPageNext.disabled =
+    pagination.total_pages === 0 || pagination.page >= pagination.total_pages;
+}
+
+// The six on-court context factors, in the project's standing order, with the
+// plain words the dialog and the rankings table both use. The three offense-side
+// factors come first: a player's own lineups on offense, the teammates he played
+// with, and the defenses he faced.
+const CONTEXT_FACTORS = Object.freeze([
+  { key: "general_offense", label: "Own lineups · offense", side: "offense" },
+  { key: "teammate_offense", label: "Teammates · offense", side: "offense" },
+  { key: "opponent_defense", label: "Defenses faced", side: "offense" },
+  { key: "general_defense", label: "Own lineups · defense", side: "defense" },
+  { key: "teammate_defense", label: "Teammates · defense", side: "defense" },
+  { key: "opponent_offense", label: "Offenses faced", side: "defense" },
+]);
+
+function isFiniteValue(value) {
+  return value !== null && value !== undefined && Number.isFinite(Number(value));
+}
+
+// A percentage change of one factor's own multiplier. V11 publishes all six
+// directly; V9 publishes four and the six multipliers they come from, so the
+// other two are read back out of those rather than left blank.
+function factorMultiplierPercentage(game, key) {
+  const published = game[`${key}_multiplier_percentage`];
+  if (isFiniteValue(published)) return Number(published);
+  const multiplier = game.factor_multipliers?.[key];
+  return isFiniteValue(multiplier) ? (Number(multiplier) - 1) * 100 : null;
+}
+
+// Every statistic that answers this dialog publishes Raw plus the six factor
+// amounts, and the three the dialog collapses them into — Raw, the offense-side
+// group and the defense-side group — add up to the published total. When a
+// deployment has not built the breakdown, `context_decomposition.available` is
+// false and the payload says why; the dialog then shows the total and the
+// reason rather than a share of nothing.
 function renderContextPayload(payload) {
   const summary = payload.summary;
+  const decomposition = payload.context_decomposition ?? null;
+  const contextAvailable = decomposition ? decomposition.available !== false : true;
+  const contextReason = decomposition?.reason
+    || "This deployment publishes no context breakdown for this statistic.";
+  const breakdownLabel = (payload.breakdown_mode ?? selectedBreakdownMode()) === "wc" ? "WC" : "VC";
   const summaryAmounts = displayClosedTriplet(
     [
       summary.raw_no_context_value,
@@ -1543,12 +2260,10 @@ function renderContextPayload(payload) {
     summary.teammate_context_pct,
     summary.opponent_context_pct,
   ];
-  const summaryPercentages = rawSummaryPercentages.every(
-    (value) => value !== null && value !== undefined,
-  )
+  const summaryPercentages = rawSummaryPercentages.every(isFiniteValue)
     ? displayClosedTriplet(rawSummaryPercentages, 100, 1)
     : [null, null, null];
-  const summaryLabels = ["Raw / no context", "Teammate context", "Opponent context"];
+  const summaryLabels = ["Raw · no context", "Offense context", "Defense context"];
   const summaryCards = summaryLabels
     .map(
       (label, index) => `
@@ -1560,8 +2275,34 @@ function renderContextPayload(payload) {
     )
     .join("");
 
+  // The scope totals of the six, which add to the two group amounts above them.
+  const scopeFactors = CONTEXT_FACTORS.map((factor) => ({
+    ...factor,
+    value: summary[`${factor.key}_context_value`],
+  }));
+  const scopeFactorsPublished = contextAvailable
+    && scopeFactors.every((factor) => isFiniteValue(factor.value));
+  const scopeTotal = scopeFactors.reduce((total, factor) => total + Number(factor.value || 0), 0);
+  const finalTotal = Number(summary.final_value);
+  const factorSection = scopeFactorsPublished
+    ? `
+      <section class="context-factor-summary" aria-label="The six context factors over this scope">
+        <h3>The six context factors</h3>
+        <p class="context-factor-note">Context moves value between teammates and never adds any: over this scope the six together are ${signedNumber(scopeTotal)} ${breakdownLabel}, against a published total of ${fixedDisplay(finalTotal, 3)}.</p>
+        <ul class="context-factor-list">
+          ${scopeFactors.map((factor) => `
+            <li class="context-factor context-factor-${factor.side}">
+              <span>${factor.label}</span>
+              <strong class="${Number(factor.value) < 0 ? "negative-value" : ""}">${signedNumber(factor.value)}</strong>
+              <small>${Math.abs(finalTotal) > 1e-12 ? `${fixedDisplay((Number(factor.value) / finalTotal) * 100, 2)}% of final` : "—"}</small>
+            </li>`).join("")}
+        </ul>
+      </section>`
+    : `<p class="context-unavailable-note">${escapeHtml(contextReason)}</p>`;
+
   const ppp = (points, possessions) =>
     Number(possessions) > 0 ? fixedDisplay(Number(points) / Number(possessions), 3) : "—";
+  const evidence = (value) => (isFiniteValue(value) ? fixedDisplay(value, 3) : "—");
   const gameCards = payload.games.length
     ? payload.games
         .map((game) => {
@@ -1574,9 +2315,8 @@ function renderContextPayload(payload) {
             game.final_value_contributed,
             3,
           );
-          const contextPercentages = game.raw_percent_of_final === null
-            ? [null, null, null]
-            : displayClosedTriplet(
+          const contextPercentages = isFiniteValue(game.raw_percent_of_final)
+            ? displayClosedTriplet(
                 [
                   game.raw_percent_of_final,
                   game.teammate_percent_of_final,
@@ -1584,8 +2324,34 @@ function renderContextPayload(payload) {
                 ],
                 100,
                 1,
-              );
+              )
+            : [null, null, null];
+          const gameFactors = CONTEXT_FACTORS.map((factor) => ({
+            ...factor,
+            value: game[`${factor.key}_context`],
+            percentage: factorMultiplierPercentage(game, factor.key),
+          }));
+          const gameFactorsPublished = contextAvailable
+            && gameFactors.every((factor) => isFiniteValue(factor.value));
           const outcome = game.win_loss ? "Win" : "Loss";
+          const hasPpp = [
+            game.offensive_possessions_on,
+            game.defensive_possessions_on,
+            game.opponent_defense_strength_mean,
+            game.opponent_offense_strength_mean,
+          ].some(isFiniteValue);
+          const hasBasis = [
+            game.offense_responsibility_basis,
+            game.defense_responsibility_basis,
+            game.other_responsibility_basis,
+          ].some(isFiniteValue);
+          // The same signed ledger after the team's own strength and the six
+          // context factors have been applied to it.
+          const hasAdjusted = [
+            game.signed_adjusted_offense,
+            game.signed_adjusted_defense,
+            game.signed_adjusted_other,
+          ].some(isFiniteValue);
           return `
             <details
               class="context-game"
@@ -1593,43 +2359,55 @@ function renderContextPayload(payload) {
               data-context-player-id="${escapeHtml(String(game.player_id))}"
             >
               <summary>
-                <span><strong>${escapeHtml(displayGameDate(game.game_date))}</strong> · ${escapeHtml(game.team.abbreviation)} vs ${escapeHtml(game.opponent.abbreviation)} · ${outcome}</span>
-                <span>${fixedDisplay(game.final_value_contributed, 3)} VC</span>
+                <span><strong>${escapeHtml(displayGameDate(game.game_date))}</strong> · ${escapeHtml(game.team_abbreviation ?? game.team?.abbreviation ?? "—")} vs ${escapeHtml(game.opponent_abbreviation ?? game.opponent?.abbreviation ?? "—")} · ${outcome}</span>
+                <span>${fixedDisplay(game.final_value_contributed, 3)} ${breakdownLabel}</span>
               </summary>
               <div class="context-game-grid">
+                ${contextAvailable ? `
                 <section>
                   <h4>Context composition</h4>
                   ${summaryLabels.map((label, index) => `<p><span>${label}</span><strong>${fixedDisplay(contextAmounts[index], 3)} · ${contextPercentages[index] === null ? "—" : `${fixedDisplay(contextPercentages[index], 1)}%`}</strong></p>`).join("")}
-                </section>
+                </section>` : `
+                <section class="context-unavailable">
+                  <h4>Context composition</h4>
+                  <p>${escapeHtml(contextReason)}</p>
+                </section>`}
+                ${gameFactorsPublished ? `
+                <section class="context-game-factors">
+                  <h4>The six context factors</h4>
+                  ${gameFactors.map((factor) => `<p><span>${factor.label}</span><strong>${signedNumber(factor.value)} · ${factor.percentage === null ? "—" : signedNumber(factor.percentage, "%")}</strong></p>`).join("")}
+                </section>` : ""}
                 <section>
                   <h4>Responsibility</h4>
                   <p><span>Offense</span><strong>${fixedDisplay(game.offensive_value_contributed, 3)}</strong></p>
                   <p><span>Defense</span><strong>${fixedDisplay(game.defensive_value_contributed, 3)}</strong></p>
                   <p><span>Other</span><strong>${fixedDisplay(game.other_value_contributed, 3)}</strong></p>
+                  ${isFiniteValue(game.actual_seconds) ? `<p><span>Minutes in scope</span><strong>${fixedDisplay(Number(game.actual_seconds) / 60, 1)}</strong></p>` : ""}
                 </section>
                 <section>
-                  <h4>Signed raw ledger</h4>
-                  <p><span>Offense</span><strong>${signedNumber(game.signed_raw_offense)}</strong></p>
-                  <p><span>Defense</span><strong>${signedNumber(game.signed_raw_defense)}</strong></p>
-                  <p><span>Other</span><strong>${signedNumber(game.signed_raw_other)}</strong></p>
+                  <h4>Signed evidence, before and after context</h4>
+                  <p><span>Offense</span><strong>${signedNumber(game.signed_raw_offense)}${hasAdjusted ? ` → ${signedNumber(game.signed_adjusted_offense)}` : ""}</strong></p>
+                  <p><span>Defense</span><strong>${signedNumber(game.signed_raw_defense)}${hasAdjusted ? ` → ${signedNumber(game.signed_adjusted_defense)}` : ""}</strong></p>
+                  <p><span>Other</span><strong>${signedNumber(game.signed_raw_other)}${hasAdjusted ? ` → ${signedNumber(game.signed_adjusted_other)}` : ""}</strong></p>
                 </section>
                 <section>
-                  <h4>Multiplier changes</h4>
-                  <p><span>Teammate offense / defense</span><strong>${signedNumber(game.teammate_offense_multiplier_percentage, "%")} / ${signedNumber(game.teammate_defense_multiplier_percentage, "%")}</strong></p>
-                  <p><span>Opponent offense / defense</span><strong>${signedNumber(game.opponent_offense_multiplier_percentage, "%")} / ${signedNumber(game.opponent_defense_multiplier_percentage, "%")}</strong></p>
-                  <p><span>Combined offense / defense</span><strong>${signedNumber(game.combined_offense_multiplier_percentage, "%")} / ${signedNumber(game.combined_defense_multiplier_percentage, "%")}</strong></p>
+                  <h4>How much each side's multiplier moved</h4>
+                  <p><span>Teammates offense / defense</span><strong>${signedNumber(game.teammate_offense_multiplier_percentage, "%")} / ${signedNumber(game.teammate_defense_multiplier_percentage, "%")}</strong></p>
+                  <p><span>Opponents offense / defense</span><strong>${signedNumber(game.opponent_offense_multiplier_percentage, "%")} / ${signedNumber(game.opponent_defense_multiplier_percentage, "%")}</strong></p>
+                  <p><span>All three together, offense / defense</span><strong>${signedNumber(game.combined_offense_multiplier_percentage, "%")} / ${signedNumber(game.combined_defense_multiplier_percentage, "%")}</strong></p>
                 </section>
+                ${hasPpp ? `
                 <section>
-                  <h4>Player-on PPP</h4>
+                  <h4>Points per possession on the floor</h4>
                   <p><span>Offense actual / expected</span><strong>${ppp(game.actual_offense_points_on, game.offensive_possessions_on)} / ${ppp(game.expected_offense_points_on, game.offensive_possessions_on)}</strong></p>
                   <p><span>Opponent actual / expected</span><strong>${ppp(game.actual_opponent_points_on, game.defensive_possessions_on)} / ${ppp(game.expected_opponent_points_on, game.defensive_possessions_on)}</strong></p>
                   <p><span>Opponent defense / offense strength</span><strong>${signedNumber(game.opponent_defense_strength_mean)} / ${signedNumber(game.opponent_offense_strength_mean)}</strong></p>
-                </section>
+                </section>` : ""}
                 <section>
-                  <h4>Responsibility evidence</h4>
-                  <p><span>Positive O / D / Other</span><strong>${fixedDisplay(game.offense_component_positive, 3)} / ${fixedDisplay(game.defense_component_positive, 3)} / ${fixedDisplay(game.other_component_positive, 3)}</strong></p>
-                  <p><span>Negative O / D / Other</span><strong>${fixedDisplay(game.offense_component_negative_magnitude, 3)} / ${fixedDisplay(game.defense_component_negative_magnitude, 3)} / ${fixedDisplay(game.other_component_negative_magnitude, 3)}</strong></p>
-                  <p><span>Basis O / D / Other</span><strong>${fixedDisplay(game.offense_responsibility_basis, 3)} / ${fixedDisplay(game.defense_responsibility_basis, 3)} / ${fixedDisplay(game.other_responsibility_basis, 3)}</strong></p>
+                  <h4>What the evidence was made of</h4>
+                  <p><span>Helped O / D / Other</span><strong>${evidence(game.offense_component_positive)} / ${evidence(game.defense_component_positive)} / ${evidence(game.other_component_positive)}</strong></p>
+                  <p><span>Cost O / D / Other</span><strong>${evidence(game.offense_component_negative_magnitude)} / ${evidence(game.defense_component_negative_magnitude)} / ${evidence(game.other_component_negative_magnitude)}</strong></p>
+                  ${hasBasis ? `<p><span>Basis O / D / Other</span><strong>${evidence(game.offense_responsibility_basis)} / ${evidence(game.defense_responsibility_basis)} / ${evidence(game.other_responsibility_basis)}</strong></p>` : ""}
                 </section>
               </div>
             </details>`;
@@ -1645,19 +2423,14 @@ function renderContextPayload(payload) {
       data-context-run-id="${escapeHtml(String(payload.run_id || ""))}"
     >
       ${summaryCards}
-      <div class="context-summary-total"><span>Selected final ${selectedBreakdownMode() === "wc" ? "WC" : "VC"}</span><strong>${fixedDisplay(summary.final_value, 3)}</strong></div>
+      <div class="context-summary-total"><span>Selected final ${breakdownLabel}</span><strong>${fixedDisplay(summary.final_value, 3)}</strong></div>
     </section>
+    ${factorSection}
     <section class="context-games" aria-label="Player game context">
       <h3>Player games</h3>
       ${gameCards}
     </section>`;
-  const pagination = payload.pagination;
-  elements.contextPageStatus.textContent = pagination.total_pages
-    ? `Page ${pagination.page} of ${pagination.total_pages}`
-    : "No pages";
-  elements.contextPagePrevious.disabled = pagination.page <= 1;
-  elements.contextPageNext.disabled =
-    pagination.total_pages === 0 || pagination.page >= pagination.total_pages;
+  renderContextPagination(payload.pagination);
 }
 
 async function loadPlayerContext() {
@@ -1697,7 +2470,10 @@ async function loadPlayerContext() {
     if (payload.games[0]?.player_name) {
       state.selectedContextPlayerName = payload.games[0].player_name;
     }
-    elements.contextDialogTitle.textContent = `${state.selectedContextPlayerName || `NBA ID ${requestPlayerId}`} context`;
+    // The name arrives with the payload; until then the dialog is generic.
+    elements.contextDialogTitle.textContent = state.selectedContextPlayerName
+      ? `${state.selectedContextPlayerName} context`
+      : "Player context";
     const scope = payload.season === "All Seasons" ? "Career" : payload.season;
     elements.contextDialogMeta.textContent = `${scope} · ${scheduleLabel(payload.phase)} · ${garbageTimeLabel()} · ${selectedBreakdownMode() === "wc" ? "Wins Contributed" : "Value Contributed"}`;
     renderContextPayload(payload);
@@ -1713,7 +2489,7 @@ async function loadPlayerContext() {
 function openPlayerContext(playerId, playerName, trigger = null, pushUrl = true) {
   if (!hasPlayerContext()) return;
   state.selectedContextPlayerId = String(playerId);
-  state.selectedContextPlayerName = playerName || `NBA ID ${playerId}`;
+  state.selectedContextPlayerName = playerName || "Unknown player";
   state.contextPage = 1;
   state.contextTrigger = trigger;
   trigger?.setAttribute("aria-expanded", "true");
@@ -1753,13 +2529,12 @@ function syncUrl(historyMode = "replace") {
     trend_window: String(selectedTrendWindow()),
     lift_window: String(selectedLiftWindow()),
     lift_group: selectedLiftGroup(),
-    game_season: elements.topGamesSeason.value,
-    game_phase: elements.topGamesPhase.value,
+    season_wins_limit: selectedSeasonWinsLimit(),
+    game_phase: selectedTopGamesPhase(),
     game_outcome: selectedTopGamesOutcome(),
-    game_limit: elements.topGamesLimit.value,
     high_value_sort_by: state.highValueSortBy,
     high_value_sort_direction: state.highValueSortDirection,
-    high_value_phase: elements.highValuePhase.value,
+    high_value_phase: selectedHighValuePhase(),
     sort_by: state.sortBy,
     sort_direction: state.sortDirection,
   });
@@ -1779,6 +2554,8 @@ function syncUrl(historyMode = "replace") {
   if (elements.search.value.trim()) {
     params.set("search", elements.search.value.trim());
   }
+  const serializePanels = state.rankingsVisualModule?.serializeOpenPanels;
+  if (serializePanels) params.set("panels", serializePanels(currentOpenPanels()));
   const method = historyMode === "push" ? "pushState" : "replaceState";
   history[method]({ playerContext: Boolean(state.selectedContextPlayerId) }, "", `?${params.toString()}`);
 }
@@ -1796,6 +2573,7 @@ async function loadRankings() {
   }
 
   updateV8Presentation();
+  updateResultsHeading();
   state.controller?.abort();
   const controller = new AbortController();
   state.controller = controller;
@@ -1815,7 +2593,7 @@ async function loadRankings() {
         garbage_time_mode: elements.garbageTimeMode.value,
         sort_by: state.sortBy,
         sort_direction: state.sortDirection,
-        limit: elements.limit.value,
+        limit: String(selectedRankingLimit() ?? API_RANKING_ROW_CEILING),
         search: elements.search.value.trim(),
         breakdown_mode: selectedBreakdownMode(),
       });
@@ -1854,7 +2632,7 @@ async function loadRankings() {
         sortDirection: state.sortDirection,
         metric: "value_contributed",
         search: elements.search.value.trim(),
-        limit: Number(elements.limit.value),
+        limit: selectedRankingLimit() ?? MERGED_RANKING_ROW_CEILING,
       });
     }
     if (
@@ -1862,14 +2640,12 @@ async function loadRankings() {
       || requestScopeSignature !== rankingScopeSignature()
     ) return false;
     state.rankingsRunId = payload.run_id;
+    // V11 names its engine rather than one run; the dialog binds on it.
+    state.rankingsEngineVersion = payload.source?.engine_version ?? null;
     state.rankingsPayload = payload;
     state.rankingsScopeSignature = requestScopeSignature;
-    const scopeLabel = directSeason === "All Seasons"
-      ? "Career"
-      : rankingSeasonLabel(selectedSeasons).replace(/ · \d+ seasons$/u, "");
-    elements.title.textContent = `${scopeLabel} player value`;
-    elements.meta.textContent = `${statVersionLabel()} · ${scheduleLabel(payload.phase)} · ${garbageTimeLabel()} · ${payload.rows.length} player${payload.rows.length === 1 ? "" : "s"} · Sorted by ${sortLabel()}`;
     renderRows(payload.rows);
+    await state.rankingsVisualWorkspace?.render(payload);
     elements.body.dataset.rankingSource = currentRankingScope().source;
     elements.body.dataset.rankingReleaseId = payload.release_id || "";
     elements.body.dataset.rankingRunId = payload.run_id || "";
@@ -1889,12 +2665,250 @@ async function loadRankings() {
       || requestScopeSignature !== rankingScopeSignature()
     ) return false;
     elements.body.innerHTML = "";
-    elements.meta.textContent = "";
     clearShareableRankings();
-    elements.error.textContent = error.message;
+    elements.error.textContent = readableError(error);
     elements.error.hidden = false;
     return false;
   }
+}
+
+async function loadRankingsComparisonPayload(currentPayload) {
+  if (isServerV10Experiment()) return currentPayload;
+  if ((currentPayload.rows ?? []).some((row) => Number(row.regular_games) > 0
+      && Number(row.postseason_games) > 0)) return currentPayload;
+  const selectedSeasons = selectedRankingSeasons();
+  const payloads = await Promise.all(selectedSeasons.map(async (season) => {
+    const params = new URLSearchParams({
+      stat_version: apiStatVersion(),
+      season,
+      phase: "All",
+      garbage_time_mode: elements.garbageTimeMode.value,
+      sort_by: "wins_contributed",
+      sort_direction: "desc",
+      limit: "1000",
+      search: "",
+      breakdown_mode: selectedBreakdownMode(),
+    });
+    if (selectedExperimentId()) params.set("experiment_id", selectedExperimentId());
+    return requestRankingPanel({ panel: "rankings", url: "/api/rankings", params });
+  }));
+  const byPlayer = new Map();
+  for (const payload of payloads) {
+    for (const row of payload.rows ?? []) {
+      const key = String(row.player_id);
+      if (!byPlayer.has(key)) byPlayer.set(key, {
+        ...row,
+        regular_games: 0,
+        postseason_games: 0,
+        regular_value_contributed: 0,
+        postseason_value_contributed: 0,
+        regular_wins_contributed: 0,
+        postseason_wins_contributed: 0,
+      });
+      const target = byPlayer.get(key);
+      for (const field of ["regular_games", "postseason_games", "regular_value_contributed",
+        "postseason_value_contributed", "regular_wins_contributed", "postseason_wins_contributed"]) {
+        target[field] += Number(row[field] ?? 0);
+      }
+    }
+  }
+  // The charts draw the players the table is showing, in the table's order, so
+  // the merged comparison rows are kept to that population.
+  const ordered = (currentPayload.rows ?? [])
+    .map((row) => byPlayer.get(String(row.player_id)))
+    .filter(Boolean);
+  return { ...currentPayload, rows: ordered };
+}
+
+// The every-season chart: each season's own top players under the table's
+// statistic, view, schedule and game time. Sorting, "Show" and the name search
+// never change it, so one answer is kept per combination of those four.
+const seasonHistoryCache = new Map();
+const SEASON_HISTORY_LANE_SIZE = 50;
+
+async function loadRankingsHistoryPayload(currentPayload, {
+  breakdown = selectedBreakdownMode(),
+  // The chart's own schedule, never the table's.
+  schedule = "All",
+} = {}) {
+  if (isServerV10Experiment() || selectedExperimentId()) return null;
+  // Oldest season at the top, so the chart reads down the years.
+  const seasons = [...availableRankingSeasons()].sort();
+  if (!seasons.length) return null;
+  const selected = selectedRankingSeasons();
+  const base = {
+    stat_version: currentPayload.stat_version ?? apiStatVersion(),
+    phase: schedule,
+    garbage_time_mode: elements.garbageTimeMode.value,
+    // The chart's own measure, which may differ from the table's.
+    breakdown_mode: breakdown === "vc" ? "vc" : "wc",
+    // Shading every row says nothing, so a whole-history table shades none.
+    selected_seasons: seasonSelectionCoversAll(selected) ? [] : selected,
+  };
+  const metric = base.breakdown_mode === "wc" ? "wins_contributed" : "value_contributed";
+  const key = [apiStatVersion(), schedule, base.garbage_time_mode, metric, seasons.join("|")].join("::");
+  if (!seasonHistoryCache.has(key)) {
+    const request = Promise.all(seasons.map(async (season) => {
+      const params = new URLSearchParams({
+        stat_version: apiStatVersion(),
+        season,
+        phase: schedule,
+        garbage_time_mode: base.garbage_time_mode,
+        sort_by: metric,
+        sort_direction: "desc",
+        limit: String(SEASON_HISTORY_LANE_SIZE),
+        search: "",
+        breakdown_mode: base.breakdown_mode,
+      });
+      const payload = await requestRankingPanel({ panel: "rankings", url: "/api/rankings", params });
+      return { season, rows: payload.rows ?? [], total_count: payload.total_count };
+    }));
+    seasonHistoryCache.set(key, request);
+    request.catch(() => seasonHistoryCache.delete(key));
+  }
+  const lanes = await seasonHistoryCache.get(key);
+  return { ...base, history_lanes: lanes.filter((lane) => lane.rows.length) };
+}
+
+// "Wins Contributed by player type": each V13 type's season totals from
+// /api/v13/type-trends. Only V13 has these types. One answer is kept per
+// schedule, window and game-time setting.
+const typeTrendCache = new Map();
+const TYPE_TREND_SCHEDULE_PARAM = Object.freeze({
+  All: "all", "Regular Season": "regular_season", Postseason: "postseason",
+});
+
+async function loadRankingsTypeTrendsPayload(_currentPayload, { schedule = "All", windowYears = 3 } = {}) {
+  if (elements.statVersion.value !== "v13" || selectedExperimentId()) return null;
+  const params = new URLSearchParams({
+    schedule: TYPE_TREND_SCHEDULE_PARAM[schedule] ?? "all",
+    time_mode: elements.garbageTimeMode.value === "all_minutes" ? "all_minutes" : "competitive",
+    window_years: String(windowYears),
+  });
+  const key = params.toString();
+  if (!typeTrendCache.has(key)) {
+    const request = fetch(`/api/v13/type-trends?${params}`).then(async (response) => {
+      if (!response.ok) {
+        const detail = await responseErrorPayload(response);
+        throw new Error(detail?.detail?.message ?? detail?.detail ?? "Player types over time could not be loaded.");
+      }
+      return response.json();
+    });
+    typeTrendCache.set(key, request);
+    request.catch(() => typeTrendCache.delete(key));
+  }
+  return typeTrendCache.get(key);
+}
+
+async function loadRankingsVisualPayload(currentPayload) {
+  if (isServerV10Experiment()) return currentPayload;
+  // V11 describes a player season rather than publishing the per-source and
+  // context vectors the V9/V10 charts project, so its style charts read the
+  // landscape endpoint instead.
+  if (isV11()) return attachV11Landscape(currentPayload);
+  // V12 answers its own landscape, with the types its own style build fitted
+  // from rung 7's profile columns; never V11's.
+  if (elements.statVersion.value === "v12") return attachV12Landscape(currentPayload);
+  // V13 answers its own landscape too, from its own style build when it has one.
+  if (elements.statVersion.value === "v13") return attachV13Landscape(currentPayload);
+  if (isServerStatVersion()
+      && (currentPayload.rows ?? []).length
+      && (currentPayload.rows ?? []).every(
+        (row) => Object.keys(row.raw_component_totals ?? {}).length > 0,
+      )) {
+    return currentPayload;
+  }
+  // V9 and V10 need the per-source and context vectors their charts project,
+  // and nothing else: the ranking rows themselves are already the population
+  // the table chose, so no wider ranking request is made for the charts.
+  return enrichOfficialLandscape(
+    currentPayload, selectedRankingSeasons(), state.controller?.signal,
+  );
+}
+
+// V12's landscape: the same route and query as V11's, under /api/v12. When its
+// styles have not been built the envelope carries no types and the charts say so.
+async function attachV12Landscape(payload) {
+  const selectedSeasons = selectedRankingSeasons();
+  const params = new URLSearchParams({
+    schedule: ({
+      All: "all", "Regular Season": "regular_season", PlayIn: "play_in",
+      Playoffs: "playoffs", Postseason: "postseason",
+    })[elements.phase.value] ?? "all",
+    time_mode: elements.garbageTimeMode.value,
+  });
+  if (!seasonSelectionIsAll(selectedSeasons)) {
+    selectedSeasons.forEach((season) => params.append("season", season));
+  }
+  const response = await fetch(`/api/v12/rankings/player-landscape?${params}`, {
+    signal: state.controller?.signal,
+  });
+  if (!response.ok) throw new Error("The V12 player type landscape could not be loaded.");
+  return { ...payload, player_landscape: await response.json() };
+}
+
+// V13's landscape: the same route and query again, under /api/v13. Until its
+// style build is installed the envelope carries no types and the charts say so.
+async function attachV13Landscape(payload) {
+  const selectedSeasons = selectedRankingSeasons();
+  const params = new URLSearchParams({
+    schedule: ({
+      All: "all", "Regular Season": "regular_season", PlayIn: "play_in",
+      Playoffs: "playoffs", Postseason: "postseason",
+    })[elements.phase.value] ?? "all",
+    time_mode: elements.garbageTimeMode.value,
+  });
+  if (!seasonSelectionIsAll(selectedSeasons)) {
+    selectedSeasons.forEach((season) => params.append("season", season));
+  }
+  const response = await fetch(`/api/v13/rankings/player-landscape?${params}`, {
+    signal: state.controller?.signal,
+  });
+  if (!response.ok) throw new Error("The V13 player type landscape could not be loaded.");
+  return { ...payload, player_landscape: await response.json() };
+}
+
+async function attachV11Landscape(payload) {
+  const selectedSeasons = selectedRankingSeasons();
+  const params = new URLSearchParams({
+    schedule: ({
+      All: "all", "Regular Season": "regular_season", PlayIn: "play_in",
+      Playoffs: "playoffs", Postseason: "postseason",
+    })[elements.phase.value] ?? "all",
+    time_mode: elements.garbageTimeMode.value,
+  });
+  if (!seasonSelectionIsAll(selectedSeasons)) {
+    selectedSeasons.forEach((season) => params.append("season", season));
+  }
+  const response = await fetch(`/api/v11/rankings/player-landscape?${params}`, {
+    signal: state.controller?.signal,
+  });
+  if (!response.ok) throw new Error("The player type landscape could not be loaded.");
+  return { ...payload, player_landscape: await response.json() };
+}
+
+async function enrichOfficialLandscape(payload, selectedSeasons, signal) {
+  if (selectedExperimentId() || isServerStatVersion()) return payload;
+  const params = new URLSearchParams({
+    source: "v9",
+    schedule: ({
+      All: "all", "Regular Season": "regular_season", PlayIn: "play_in",
+      Playoffs: "playoffs", Postseason: "postseason",
+    })[elements.phase.value] ?? "all",
+    time_mode: elements.garbageTimeMode.value,
+  });
+  if (!seasonSelectionIsAll(selectedSeasons)) {
+    selectedSeasons.forEach((season) => params.append("season", season));
+  }
+  const response = await fetch(`/api/rankings/player-landscape?${params}`, { signal });
+  if (!response.ok) throw new Error("The player similarity landscape could not be loaded.");
+  const landscape = await response.json();
+  const byPlayer = new Map((landscape.rows ?? []).map((row) => [String(row.player_id), row]));
+  return {
+    ...payload,
+    rows: (payload.rows ?? []).map((row) => ({ ...row, ...(byPlayer.get(String(row.player_id)) ?? {}) })),
+    landscape_source: landscape.source,
+  };
 }
 
 async function loadTopGames() {
@@ -1905,11 +2919,11 @@ async function loadTopGames() {
 
   const params = new URLSearchParams({
     stat_version: apiStatVersion(),
-    season: elements.topGamesSeason.value,
-    phase: elements.topGamesPhase.value,
+    season: "All Seasons",
+    phase: selectedTopGamesPhase(),
     outcome: selectedTopGamesOutcome(),
     garbage_time_mode: elements.garbageTimeMode.value,
-    limit: elements.topGamesLimit.value,
+    limit: String(TOP_GAMES_LIMIT),
   });
   addSelectedExperimentParam(params);
 
@@ -1920,26 +2934,12 @@ async function loadTopGames() {
       params,
       signal: state.topGamesController.signal,
     });
-    const seasonLabel = payload.season === "All Seasons" ? "All seasons" : payload.season;
-    const phaseLabel = {
-      All: "All games",
-      "Regular Season": "Regular season",
-      Playoffs: "Playoffs",
-      Postseason: "Postseason",
-    }[payload.phase] ?? payload.phase;
-    const outcomeLabel = {
-      Both: "wins and losses",
-      Wins: "wins only",
-      Losses: "losses only",
-    }[payload.outcome] ?? payload.outcome;
     renderTopGames(payload.rows);
     bindSupportingPanelPayload(elements.topGamesBody, payload);
-    elements.topGamesMeta.textContent = `${supportingStatVersionLabel()} · ${seasonLabel} · ${phaseLabel} · ${outcomeLabel} · ${garbageTimeLabel()} · Top ${payload.rows.length}`;
     return true;
   } catch (error) {
     if (error.name === "AbortError") return false;
     elements.topGamesBody.innerHTML = "";
-    elements.topGamesMeta.textContent = "";
     elements.topGamesError.textContent = error.message;
     elements.topGamesError.hidden = false;
     return false;
@@ -1955,7 +2955,7 @@ async function loadHighValueRecords() {
 
   const params = new URLSearchParams({
     stat_version: apiStatVersion(),
-    phase: elements.highValuePhase.value,
+    phase: selectedHighValuePhase(),
     garbage_time_mode: elements.garbageTimeMode.value,
     sort_by: state.highValueSortBy,
     sort_direction: state.highValueSortDirection,
@@ -1969,22 +2969,15 @@ async function loadHighValueRecords() {
       params,
       signal: state.highValueRecordsController.signal,
     });
-    const phaseLabel = {
-      All: "All games",
-      "Regular Season": "Regular season",
-      Playoffs: "Playoffs · no Play-In",
-      Postseason: "Postseason · Play-In + playoffs",
-    }[payload.phase] ?? payload.phase;
+    applyHighValueThreshold(payload.threshold);
     renderHighValueRecords(payload.rows);
     bindSupportingPanelPayload(elements.highValueRecordsBody, payload);
     elements.highValuePlayerCount.textContent = String(payload.total_players);
-    elements.highValueRecordsMeta.textContent = `${supportingStatVersionLabel()} · ${phaseLabel} · ${garbageTimeLabel()} · ${payload.total_players} qualifying player${payload.total_players === 1 ? "" : "s"} · Sorted by ${highValueSortLabel()}`;
     return true;
   } catch (error) {
     if (error.name === "AbortError") return false;
     elements.highValueRecordsBody.innerHTML = "";
     elements.highValuePlayerCount.textContent = "—";
-    elements.highValueRecordsMeta.textContent = "";
     elements.highValueRecordsError.textContent = error.message;
     elements.highValueRecordsError.hidden = false;
     return false;
@@ -2098,6 +3091,7 @@ function renderTrendLegend(players, windowYears, qualificationRank) {
 }
 
 function renderTrendChart(payload) {
+  state.rankingsVisualModule?.renderMobileTrend(document.querySelector("#mobile-trend-preview"), payload);
   state.trendPayload = payload;
   state.activeTrendPlayer = null;
   bindSupportingPanelPayload(elements.trendChart, payload);
@@ -2107,7 +3101,6 @@ function renderTrendChart(payload) {
       <text class="chart-loading" x="560" y="290" text-anchor="middle">
         No players qualified in this schedule.
       </text>`;
-    elements.trendMeta.textContent = `No qualifying ${payload.window_years}-season windows`;
     elements.trendLegend.innerHTML = "";
     matchLegendHeightToChart(elements.trendChart, elements.trendLegend);
     return;
@@ -2273,7 +3266,6 @@ function renderTrendChart(payload) {
   elements.trendChart.appendChild(lineLayer);
   renderTrendLegend(players, payload.window_years, payload.qualification_rank);
   applyTrendHighlight();
-  elements.trendMeta.textContent = `${supportingStatVersionLabel()} · ${scheduleLabel(payload.phase)} · ${players.length} top-${payload.qualification_rank} qualifiers · ${payload.window_years}-year Wins Contributed average`;
   matchLegendHeightToChart(elements.trendChart, elements.trendLegend);
 }
 
@@ -2300,7 +3292,8 @@ async function loadTrends() {
   } catch (error) {
     if (error.name === "AbortError") return false;
     elements.trendChart.innerHTML = "";
-    elements.trendMeta.textContent = "";
+    const mobileTrend = document.querySelector("#mobile-trend-preview");
+    if (mobileTrend) mobileTrend.textContent = "Career trends could not load. Try changing the schedule or reloading.";
     elements.trendError.textContent = error.message;
     elements.trendError.hidden = false;
     return false;
@@ -2426,6 +3419,7 @@ function renderLiftLegend(players) {
 }
 
 function renderLiftChart(payload = state.liftPayload) {
+  state.rankingsVisualModule?.renderMobileLift(document.querySelector("#mobile-lift-preview"), payload, selectedLiftGroup());
   state.liftPayload = payload;
   bindSupportingPanelPayload(elements.liftChart, payload);
   const players = visibleLiftPlayers();
@@ -2435,7 +3429,6 @@ function renderLiftChart(payload = state.liftPayload) {
       <text class="chart-loading" x="560" y="290" text-anchor="middle">
         No qualifying postseason rank changes.
       </text>`;
-    elements.liftMeta.textContent = "No qualifying postseason rank changes";
     elements.liftLegend.innerHTML = "";
     matchLegendHeightToChart(elements.liftChart, elements.liftLegend);
     return;
@@ -2610,7 +3603,6 @@ function renderLiftChart(payload = state.liftPayload) {
     bottom: "bottom-10 qualifiers",
     both: "top/bottom-10 qualifiers",
   }[selectedLiftGroup()];
-  elements.liftMeta.textContent = `${supportingStatVersionLabel()} · ${players.length} ${groupLabel} · ${payload.window_years}-year average`;
   matchLegendHeightToChart(elements.liftChart, elements.liftLegend);
 }
 
@@ -2637,7 +3629,8 @@ async function loadLiftTrends() {
   } catch (error) {
     if (error.name === "AbortError") return false;
     elements.liftChart.innerHTML = "";
-    elements.liftMeta.textContent = "";
+    const mobileLift = document.querySelector("#mobile-lift-preview");
+    if (mobileLift) mobileLift.textContent = "Postseason rank changes could not load. Try reloading.";
     elements.liftError.textContent = error.message;
     elements.liftError.hidden = false;
     return false;
@@ -2758,12 +3751,9 @@ function reloadDeferredPanel(key) {
   return loadDeferredPanel(key, true);
 }
 
-function isNearViewport(element) {
-  if (!element) return false;
-  const bounds = element.getBoundingClientRect();
-  return bounds.bottom >= -400 && bounds.top <= window.innerHeight + 400;
-}
-
+// Every deferred panel is now a disclosure, so the one rule is the same for all
+// five: a panel that is open is loaded, and a panel that is closed costs
+// nothing until somebody opens it.
 function loadVisibleDeferredPanels() {
   if (!state.deferredPanelsReady) return;
   if (elements.seasonWinsDetails?.open) loadDeferredPanel("seasonWins");
@@ -2771,14 +3761,8 @@ function loadVisibleDeferredPanels() {
   if (elements.highValueRecordsDetails?.open) {
     loadDeferredPanel("highValueRecords");
   }
-  if (
-    !state.deferredPanelObserver
-    || isNearViewport(elements.trendsSection)
-  ) loadDeferredPanel("trends");
-  if (
-    !state.deferredPanelObserver
-    || isNearViewport(elements.liftSection)
-  ) loadDeferredPanel("lift");
+  if (elements.trendsSection?.open) loadDeferredPanel("trends");
+  if (elements.liftSection?.open) loadDeferredPanel("lift");
 }
 
 function setupDeferredPanelLoading() {
@@ -2791,17 +3775,16 @@ function setupDeferredPanelLoading() {
       if (details.open) loadDeferredPanel(key);
     });
   });
-
-  if (typeof IntersectionObserver === "undefined") return;
-  state.deferredPanelObserver = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      if (entry.target === elements.trendsSection) loadDeferredPanel("trends");
-      if (entry.target === elements.liftSection) loadDeferredPanel("lift");
+  [
+    [elements.trendsSection, "trends"],
+    [elements.liftSection, "lift"],
+  ].forEach(([details, key]) => {
+    details?.addEventListener("toggle", () => {
+      rememberOpenPanels();
+      syncUrl();
+      if (details.open) loadDeferredPanel(key);
     });
-  }, { rootMargin: "400px 0px" });
-  if (elements.trendsSection) state.deferredPanelObserver.observe(elements.trendsSection);
-  if (elements.liftSection) state.deferredPanelObserver.observe(elements.liftSection);
+  });
 }
 
 function isDesktopExperimentDevice() {
@@ -3286,7 +4269,7 @@ function advancedRoleMarkup(field, templateKey) {
         </div>
         <details class="advanced-role-explanation"><summary>What this controls</summary><p>${escapeHtml(explanation)}</p></details>
         <dl class="coefficient-values">
-          <div><dt>Original</dt><dd>${baseline.toFixed(3)}</dd></div>
+          <div><dt>V9</dt><dd>${baseline.toFixed(3)}</dd></div>
           <div><dt>After slider</dt><dd data-inherited-value>${baseline.toFixed(3)}</dd></div>
           <div class="edited-value"><dt>Edited</dt><dd><input data-coefficient-key="${escapeHtml(field.key)}" type="number" min="${field.minimum ?? 0}" max="${field.maximum ?? 1}" step="0.001" placeholder="After slider" aria-label="Edited ${escapeHtml(field.label)}" /></dd></div>
         </dl>
@@ -3297,7 +4280,7 @@ function advancedRoleMarkup(field, templateKey) {
       <div class="advanced-role-heading"><span>${escapeHtml(roleName)}</span><span class="derived-badge">Calculated · read-only</span></div>
       <details class="advanced-role-explanation"><summary>How this is calculated</summary><p>${escapeHtml(explanation)}</p></details>
       <dl class="coefficient-values">
-        <div><dt>Original</dt><dd>${baseline.toFixed(3)}</dd></div>
+        <div><dt>V9</dt><dd>${baseline.toFixed(3)}</dd></div>
         <div><dt>Current inputs</dt><dd data-inherited-value>${baseline.toFixed(3)}</dd></div>
         <div><dt>Calculated</dt><dd><output data-derived-value>${baseline.toFixed(3)}</output></dd></div>
       </dl>
@@ -3813,7 +4796,7 @@ function invalidateExperimentReview() {
 
 function resetExperimentEditor() {
   delete elements.rawMultiplierControls.dataset.activeRawGroup;
-  elements.experimentName.value = "My Original experiment";
+  elements.experimentName.value = "My V9 experiment";
   Array.from(elements.experimentSeasons.options).forEach((option) => {
     option.selected = option.value === "2026";
   });
@@ -3940,23 +4923,95 @@ function experimentStatus(row) {
   return row.progress?.status || row.status || (row.published ? "complete" : "draft");
 }
 
+function serverExperiment(experimentId = selectedExperimentId()) {
+  return state.serverExperimentCatalog.find(
+    (row) => String(experimentIdentifier(row)) === String(experimentId),
+  ) || null;
+}
+
+function isServerV10Experiment(experimentId = selectedExperimentId()) {
+  return Boolean(serverExperiment(experimentId));
+}
+
 function renderExperimentSelector(experiments) {
+  state.localExperimentCatalog = experiments;
   const selected = elements.statVersion.value;
-  const completed = experiments.filter((row) =>
-    row.published && experimentStatus(row) === "complete");
-  elements.myExperimentOptions.innerHTML = completed.length
-    ? completed.map((row) => {
-        const stale = row.stale ? " · update available" : "";
-        return `<option value="experiment:${escapeHtml(experimentIdentifier(row))}">${escapeHtml(experimentDisplayName(row))}${stale}</option>`;
+  const completed = [...experiments, ...state.serverExperimentCatalog].filter((row) =>
+    row.published
+    && experimentStatus(row) === "complete"
+    && row.stale !== true
+    && row.requiresRerun !== true);
+  elements.officialRankingOptions
+    .querySelectorAll("option[data-featured-experiment]")
+    .forEach((option) => option.remove());
+  completed.filter((row) => row.featured_ranking).forEach((row) => {
+    const option = document.createElement("option");
+    option.value = `experiment:${experimentIdentifier(row)}`;
+    option.textContent = experimentDisplayName(row);
+    option.dataset.featuredExperiment = "true";
+    // Featured experiments sit below the official statistics, above V9.
+    const v9Option = elements.officialRankingOptions.querySelector('option[value="original"]');
+    if (v9Option) v9Option.before(option);
+    else elements.officialRankingOptions.append(option);
+  });
+  const ordinary = completed.filter((row) => !row.featured_ranking);
+  elements.myExperimentOptions.innerHTML = ordinary.length
+    ? ordinary.map((row) => {
+        return `<option value="experiment:${escapeHtml(experimentIdentifier(row))}">${escapeHtml(experimentDisplayName(row))}</option>`;
       }).join("")
-    : '<option value="local:none" disabled>No completed experiments on this device</option>';
+    : '<option value="local:none" disabled>No completed experiments available</option>';
   const values = Array.from(elements.statVersion.options, (option) => option.value);
   const requested = state.requestedStatVersion;
   if (requested && values.includes(requested)) {
     elements.statVersion.value = requested;
     state.requestedStatVersion = null;
   } else if (values.includes(selected)) elements.statVersion.value = selected;
-  else elements.statVersion.value = "original";
+  else elements.statVersion.value = defaultOfficialRanking();
+}
+
+async function refreshServerExperiments() {
+  const sources = [
+    { root: "/api/v10-experiments", kind: "legacy" },
+    { root: "/api/v10-genuine-experiments", kind: "genuine" },
+    {
+      root: "/api/v10-unbounded-side-budget-experiments",
+      kind: "unbounded-side-budget",
+    },
+  ];
+  const catalogs = await Promise.all(sources.map(async ({ root, kind }) => {
+    try {
+      const response = await fetch(`${root}/suites?limit=5`);
+      if (!response.ok) return [];
+      const payload = await response.json();
+      if (payload.available === false) return [];
+      const details = await Promise.all((payload.rows || []).map(async (suite) => {
+        const detailResponse = await fetch(`${root}/suites/${encodeURIComponent(suite.suite_id)}`);
+        return detailResponse.ok ? detailResponse.json() : null;
+      }));
+      return details
+        .filter((detail) => detail?.suite?.status === "complete")
+        .flatMap((detail) =>
+          (detail.arms || [])
+            .filter((arm) => arm.status === "complete")
+            .map((arm) => ({
+              ...arm,
+              name: detail.suite?.manifest?.coverage_scope === "all_history"
+                ? arm.label
+                : `2025–26 · ${arm.label}`,
+              published: true,
+              selected_seasons: detail.suite?.manifest?.season_end_years || [2026],
+              featured_ranking: detail.suite?.manifest?.coverage_scope === "all_history",
+              server_v10_experiment: true,
+              server_experiment_api: kind,
+            })),
+        );
+    } catch (_error) {
+      return [];
+    }
+  }));
+  state.serverExperimentCatalog = catalogs.flat();
+  renderExperimentSelector(state.localExperimentCatalog);
+  return state.serverExperimentCatalog;
 }
 
 function seasonEndYearFromDashboardValue(value) {
@@ -4002,11 +5057,30 @@ async function updateSourceSeasonAvailability() {
   const source = elements.statVersion.value;
   const experimentId = selectedExperimentId();
   let allowedSeasons = null;
-  if (experimentId && state.experimentClient?.getExperiment) {
+  const serverExperimentSelected = Array.isArray(state.serverExperimentCatalog)
+    ? state.serverExperimentCatalog.find((row) => String(
+        row.experimentId || row.experiment_id || row.id,
+      ) === String(experimentId))
+    : null;
+  if (serverExperimentSelected) {
+    const selected = serverExperimentSelected.selectedSeasons
+      || serverExperimentSelected.selected_seasons
+      || [2026];
+    allowedSeasons = new Set(selected.map(Number));
+  } else if (experimentId && state.experimentClient?.getExperiment) {
     const experiment = await state.experimentClient.getExperiment(experimentId);
     const selected = experiment?.selectedSeasons || experiment?.selected_seasons
       || experiment?.configuration?.selected_seasons || [];
     allowedSeasons = new Set(selected.map(Number));
+  } else if (!experimentId && state.sourceSeasonEndYears?.[source]) {
+    // A server statistic that has calculated fewer seasons than the page
+    // lists (V12 and V13, while their seasons are still being run) offers only those.
+    const calculated = state.sourceSeasonEndYears[source];
+    const covered = state.seasonValues.every((season) => {
+      const seasonEndYear = seasonEndYearFromDashboardValue(season);
+      return !seasonEndYear || calculated.has(seasonEndYear);
+    });
+    if (!covered) allowedSeasons = calculated;
   }
   if (
     generation !== state.deferredPanelGeneration
@@ -4021,7 +5095,7 @@ async function updateSourceSeasonAvailability() {
       }))
     : null;
   updateRollingWindowAvailability(allowedSeasons);
-  [elements.season, elements.topGamesSeason].forEach((select) => {
+  [elements.season].forEach((select) => {
     Array.from(select.options).forEach((option) => {
       if (!option.dataset.officialLabel) option.dataset.officialLabel = option.textContent;
       const seasonEndYear = seasonEndYearFromDashboardValue(option.value);
@@ -4072,14 +5146,24 @@ function localExperimentCard(row) {
   const failure = failureMessage
     ? `<span class="experiment-error">${escapeHtml(failureMessage)}</span>`
     : "";
-  const open = row.published && experimentStatus(row) === "complete"
+  const open = row.published
+    && experimentStatus(row) === "complete"
+    && row.stale !== true
+    && row.requiresRerun !== true
     ? `<button type="button" data-experiment-action="open" data-experiment-id="${escapeHtml(experimentId)}">Open in Rankings</button>`
+    : "";
+  const resume = ["interrupted", "cancelled"].includes(experimentStatus(row))
+    && row.stale !== true
+    && row.requiresRerun !== true
+    && completedSeasons.length < seasons.length
+    ? `<button type="button" data-experiment-action="resume" data-experiment-id="${escapeHtml(experimentId)}">Resume</button>`
     : "";
   return `
     <article class="local-experiment-card" data-local-experiment="${escapeHtml(experimentId)}">
       <div><strong>${escapeHtml(experimentDisplayName(row))}</strong><span>${escapeHtml(progress)}</span>${stale}${failure}</div>
       <div class="local-experiment-actions">
         ${open}
+        ${resume}
         <button type="button" data-experiment-action="rename" data-experiment-id="${escapeHtml(experimentId)}">Rename</button>
         <button type="button" data-experiment-action="clone" data-experiment-id="${escapeHtml(experimentId)}">Clone</button>
         <button type="button" data-experiment-action="rerun" data-experiment-id="${escapeHtml(experimentId)}">Rerun</button>
@@ -4122,14 +5206,30 @@ async function handleLocalExperimentAction(event) {
   button.disabled = true;
   try {
     if (action === "open") {
+      const current = await state.experimentClient.getExperiment(experimentId);
+      if (!current || current.stale === true || current.requiresRerun === true) {
+        throw new Error(
+          "Rerun this experiment under the receipt-bound local release before viewing it.",
+        );
+      }
       elements.statVersion.value = `experiment:${experimentId}`;
       elements.experimentDialog.close();
-      state.contextColumnsExpanded = false;
       const generation = resetDeferredPanelLoads();
       await updateSourceSeasonAvailability();
       if (generation !== state.deferredPanelGeneration) return;
       updateV8Presentation();
       await loadSelectedStatistic();
+      return;
+    }
+    if (action === "resume") {
+      const current = await state.experimentClient.getExperiment(experimentId);
+      if (!current || current.stale === true || current.requiresRerun === true) {
+        throw new Error("This experiment cannot resume under the current receipt-bound release.");
+      }
+      state.activeExperimentId = experimentId;
+      state.experimentClient.resume(experimentId);
+      elements.cancelExperiment.hidden = false;
+      elements.experimentRuntimeStatus.textContent = "Resuming from the last completed season checkpoint in a fresh calculation pass.";
       return;
     }
     if (action === "rename") {
@@ -4159,7 +5259,7 @@ async function handleLocalExperimentAction(event) {
         manifestSha256: bootstrap.sha256,
         selectedSeasons: configuration.selected_seasons,
       });
-      await state.experimentClient.rerun(experimentId, {
+      const rerunId = await state.experimentClient.rerun(experimentId, {
         configuration,
         manifestUrl: bootstrap.url,
         manifestSha256: bootstrap.sha256,
@@ -4169,6 +5269,10 @@ async function handleLocalExperimentAction(event) {
           review_receipt: reviewed.review.review_receipt,
         },
       });
+      state.activeExperimentId = typeof rerunId === "string"
+        ? rerunId
+        : experimentIdentifier(rerunId);
+      showInitialExperimentRunProgress(reviewed);
     }
     if (action === "delete") {
       const confirmed = window.confirm(
@@ -4186,16 +5290,25 @@ async function handleLocalExperimentAction(event) {
 }
 
 function manifestBootstrap() {
-  const release = window.__VC_ORIGINAL_RELEASE__ || {};
-  const relativeUrl = release.manifestUrl
-    || document.querySelector('meta[name="original-package-manifest"]')?.content
-    || "./data/original-package-manifest.json";
-  const sha256 = release.manifestSha256
-    || document.querySelector('meta[name="original-package-manifest-sha256"]')?.content
-    || "";
+  const relativeUrl = document.querySelector(
+    'meta[name="original-package-manifest"]',
+  )?.content;
+  const sha256 = document.querySelector(
+    'meta[name="original-package-manifest-sha256"]',
+  )?.content || "";
+  if (!relativeUrl || !/^[0-9a-f]{64}$/.test(sha256)) {
+    throw new Error(
+      "A checksum-bound local V9 package manifest has not been configured.",
+    );
+  }
   // The same manifest URL is sent to a module worker, where relative URLs
   // would otherwise resolve from /dashboard-assets/ instead of this page.
   const url = new URL(relativeUrl, document.baseURI).toString();
+  if (new URL(url).origin !== window.location.origin) {
+    throw new Error(
+      "The V9 package manifest must use the dashboard origin.",
+    );
+  }
   return { url, sha256 };
 }
 
@@ -4210,11 +5323,11 @@ async function loadVerifiedCatalogForEditor() {
     throw new Error("The trusted package-manifest checksum has not been embedded in this release.");
   }
   const response = await fetch(bootstrap.url, { cache: "no-cache" });
-  if (!response.ok) throw new Error("The Original package manifest is not available.");
+  if (!response.ok) throw new Error("The V9 package manifest is not available.");
   const manifestBytes = await response.arrayBuffer();
   const actualManifestSha = await sha256Hex(manifestBytes);
   if (actualManifestSha !== bootstrap.sha256) {
-    throw new Error("The Original package manifest failed its release checksum.");
+    throw new Error("The V9 package manifest failed its release checksum.");
   }
   const manifest = JSON.parse(new TextDecoder().decode(manifestBytes));
   const catalogResponse = await fetch(manifest.catalog.url, { cache: "force-cache" });
@@ -4235,6 +5348,111 @@ function runtimeEventDetail(event) {
   return event?.detail || event?.data || event || {};
 }
 
+function experimentSeasonLabel(seasonEndYear) {
+  const year = Number(seasonEndYear);
+  if (!Number.isInteger(year)) return "selected season";
+  return `${year - 1}–${String(year).slice(-2).padStart(2, "0")}`;
+}
+
+function formattedGameCount(value) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(value));
+}
+
+function showInitialExperimentRunProgress(reviewBundle) {
+  const selected = new Set((reviewBundle?.selectedSeasons || []).map(Number));
+  const seasons = reviewBundle?.manifest?.seasons || [];
+  const totalGames = seasons
+    .filter((season) => selected.has(Number(season.season_end_year)))
+    .reduce((sum, season) => sum + Number(season.game_count || 0), 0);
+  updateExperimentRunProgress({
+    stage: "preparing",
+    completedGames: 0,
+    totalGames,
+    currentGameId: null,
+    seasonEndYear: null,
+    seasonCompletedGames: 0,
+    seasonTotalGames: null,
+  });
+}
+
+function updateExperimentRunProgress(progress, terminalType = null) {
+  const current = progress || state.experimentRunProgress;
+  if (!current) return;
+  state.experimentRunProgress = { ...current };
+  elements.experimentRunProgress.hidden = false;
+
+  const total = Math.max(0, Number(current.totalGames) || 0);
+  const completed = Math.min(total, Math.max(0, Number(current.completedGames) || 0));
+  const seasonTotal = Math.max(0, Number(current.seasonTotalGames) || 0);
+  const seasonCompleted = Math.min(
+    seasonTotal,
+    Math.max(0, Number(current.seasonCompletedGames) || 0),
+  );
+  const seasonLabel = experimentSeasonLabel(current.seasonEndYear);
+  const globalCount = `${formattedGameCount(completed)} of ${formattedGameCount(total)} selected games`;
+  elements.experimentRunProgressBar.max = total || 1;
+  elements.experimentRunProgressBar.value = completed;
+
+  if (terminalType === "cancelled") {
+    elements.experimentRunProgressLabel.textContent = "Experiment cancelled";
+    elements.experimentRunProgressCount.textContent = globalCount;
+    elements.experimentRunProgressDetail.textContent = "Completed seasons were kept; the unfinished season was removed.";
+    return;
+  }
+  if (terminalType === "error") {
+    elements.experimentRunProgressLabel.textContent = "Experiment stopped";
+    elements.experimentRunProgressCount.textContent = globalCount;
+    elements.experimentRunProgressDetail.textContent = "The run stopped safely before incomplete results could be published.";
+    return;
+  }
+
+  const stage = terminalType === "complete" ? "complete" : current.stage;
+  if (stage === "calculating-games") {
+    elements.experimentRunProgressLabel.textContent = `Calculating ${seasonLabel}`;
+    elements.experimentRunProgressCount.textContent = `Game ${formattedGameCount(seasonCompleted)} of ${formattedGameCount(seasonTotal)}`;
+    elements.experimentRunProgressDetail.textContent = current.currentGameId
+      ? `${globalCount} complete · game ID ${current.currentGameId}`
+      : `${globalCount} complete · preparing the first game`;
+    return;
+  }
+  if (stage === "saving-results") {
+    elements.experimentRunProgressLabel.textContent = `Saving ${seasonLabel}`;
+    elements.experimentRunProgressCount.textContent = globalCount;
+    elements.experimentRunProgressDetail.textContent = "All games in this season are calculated; player results are being verified and saved locally.";
+    return;
+  }
+  if (stage === "checkpointing") {
+    elements.experimentRunProgressLabel.textContent = `Checking ${seasonLabel}`;
+    elements.experimentRunProgressCount.textContent = globalCount;
+    elements.experimentRunProgressDetail.textContent = "The season calculation is complete and its local receipt is being verified.";
+    return;
+  }
+  if (stage === "season-complete") {
+    elements.experimentRunProgressLabel.textContent = `${seasonLabel} complete`;
+    elements.experimentRunProgressCount.textContent = globalCount;
+    elements.experimentRunProgressDetail.textContent = "Season results passed and were saved on this device.";
+    return;
+  }
+  if (stage === "complete") {
+    elements.experimentRunProgressLabel.textContent = "Experiment complete";
+    elements.experimentRunProgressCount.textContent = `${formattedGameCount(total)} of ${formattedGameCount(total)} games`;
+    elements.experimentRunProgressBar.value = total;
+    elements.experimentRunProgressDetail.textContent = "Every selected game passed. The experiment is ready under My Experiments.";
+    return;
+  }
+  if (stage === "verifying-packages" || stage === "preparing-calculation") {
+    elements.experimentRunProgressLabel.textContent = `Preparing ${seasonLabel}`;
+    elements.experimentRunProgressCount.textContent = globalCount;
+    elements.experimentRunProgressDetail.textContent = stage === "verifying-packages"
+      ? "Downloading and verifying this season’s local calculation packages."
+      : "Packages passed; decoding the game inputs before calculation.";
+    return;
+  }
+  elements.experimentRunProgressLabel.textContent = "Preparing experiment";
+  elements.experimentRunProgressCount.textContent = globalCount;
+  elements.experimentRunProgressDetail.textContent = "Verifying the signed catalog and selected season packages.";
+}
+
 async function handleExperimentRuntimeEvent(event) {
   const detail = runtimeEventDetail(event);
   const type = detail.type || event?.type || "state";
@@ -4245,12 +5463,21 @@ async function handleExperimentRuntimeEvent(event) {
     "season-started": season ? `Calculating season ${season}…` : "Calculating the next season…",
     "shard-verified": detail.kind ? `Verified ${detail.kind} package.` : "Verified a package shard.",
     "season-checkpoint": season ? `Season ${season} passed and was checkpointed.` : "Season checkpoint saved.",
+    "worker-recycle": "Season checkpoints are safe. Reclaiming memory before the next calculation pass…",
     complete: "Experiment complete. It is now available under My Experiments.",
     cancelled: "Experiment cancelled. Incomplete result rows were removed; verified packages were retained.",
     error: detail.message || detail.error?.message || "The browser-local run stopped safely.",
   };
   elements.experimentRuntimeStatus.textContent = messages[type] || messages.state;
+  if (detail.status === "running" && detail.experimentId && !state.activeExperimentId) {
+    state.activeExperimentId = detail.experimentId;
+  }
+  if (detail.runProgress || ["complete", "cancelled", "error"].includes(type)) {
+    updateExperimentRunProgress(detail.runProgress, type);
+  }
   elements.cancelExperiment.hidden = !["state", "season-started", "shard-verified", "season-checkpoint"].includes(type);
+  if (type === "worker-recycle") elements.cancelExperiment.hidden = false;
+  if (type === "ready" && detail.recoveredExperimentIds?.length) await refreshLocalExperiments();
   if (["complete", "cancelled", "error"].includes(type)) {
     state.activeExperimentId = null;
     elements.cancelExperiment.hidden = true;
@@ -4317,6 +5544,7 @@ async function startExperimentRun(event) {
     state.activeExperimentId = typeof experimentId === "string"
       ? experimentId
       : experimentIdentifier(experimentId);
+    showInitialExperimentRunProgress(review);
     elements.cancelExperiment.hidden = false;
     elements.experimentRuntimeStatus.textContent = "Experiment started in a dedicated Web Worker. You can close this dialog while it runs.";
     await refreshLocalExperiments();
@@ -4523,8 +5751,9 @@ async function initializeRankingCardSharing() {
 
 async function initializeExperimentLab() {
   try {
+    const bootstrap = manifestBootstrap();
     const [runtimeModule, storageModule] = await Promise.all([
-      import("./experiments/runtime-client.js"),
+      import("./experiments/runtime-client.js?v=20260907-lean-runtime-v1"),
       import("./experiments/storage-guard.js"),
     ]);
     state.runtimeModule = runtimeModule;
@@ -4532,26 +5761,32 @@ async function initializeExperimentLab() {
     if (typeof runtimeModule.createOriginalExperimentClient !== "function") {
       throw new Error("The browser-local runtime module has no client factory.");
     }
-    state.experimentClient = await runtimeModule.createOriginalExperimentClient();
+    const verifiedCatalog = await loadVerifiedCatalogForEditor();
+    state.experimentClient = await runtimeModule.createOriginalExperimentClient({
+      manifestAuthority: {
+        ...bootstrap,
+        releaseId: verifiedCatalog.manifest.release_id,
+      },
+    });
     if (state.experimentClient.subscribe) {
       state.experimentClient.subscribe(handleExperimentRuntimeEvent);
     } else {
-      ["ready", "state", "season-started", "shard-verified", "season-checkpoint", "complete", "cancelled", "error"]
+      ["ready", "state", "season-started", "shard-verified", "season-checkpoint", "worker-recycle", "complete", "cancelled", "error"]
         .forEach((type) => window.addEventListener(`vc-experiment:${type}`, handleExperimentRuntimeEvent));
     }
     if (!isDesktopExperimentDevice()) elements.desktopRequiredMessage.hidden = false;
+    await state.experimentClient.markStaleReleases(
+      verifiedCatalog.manifest.release_id,
+    );
     await refreshLocalExperiments();
+    await awaitAdvancedRefreshSettled();
+    validateExperimentDraft({ announce: false });
     elements.experimentRuntimeStatus.textContent = "Browser-local engine ready. Packages are verified before calculation.";
   } catch (error) {
-    renderExperimentSelector([]);
+    renderExperimentSelector(state.localExperimentCatalog);
     elements.experimentRuntimeStatus.textContent = "Official rankings are ready. The local experiment engine is not available in this build.";
     elements.experimentRuntimeError.textContent = error.message;
     elements.experimentRuntimeError.hidden = false;
-  }
-  try {
-    await loadVerifiedCatalogForEditor();
-  } catch (error) {
-    elements.advancedOutcomeGroups.innerHTML = `<p class="advanced-loading">${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -4564,21 +5799,163 @@ window.ValueContributedOriginalUI = Object.freeze({
   shareCurrentRankingCard,
 });
 
-window.addEventListener("vc-experiment:catalog-ready", (event) => {
-  if (event.detail?.catalog) renderAdvancedCatalog(event.detail.catalog);
-});
+if (EXPERIMENTS_ON) {
+  window.addEventListener("vc-experiment:catalog-ready", (event) => {
+    if (event.detail?.catalog) renderAdvancedCatalog(event.detail.catalog);
+  });
+}
+
+const mobileRankingsToggle = document.querySelector("#mobile-rankings-toggle");
+const mobileRankingsPanel = document.querySelector("#rankings-panel");
+if (mobileRankingsToggle && mobileRankingsPanel) {
+  const storageKey = "value-contributed:mobile-rankings-open";
+  const setRankingsOpen = (open) => {
+    mobileRankingsPanel.classList.toggle("is-mobile-collapsed", !open);
+    mobileRankingsToggle.setAttribute("aria-expanded", String(open));
+    mobileRankingsToggle.querySelector(".rankings-toggle-action").textContent = open ? "Collapse section −" : "Expand section +";
+  };
+  let rememberedOpen = false;
+  try { rememberedOpen = sessionStorage.getItem(storageKey) === "true"; } catch { /* Local preference is optional. */ }
+  setRankingsOpen(rememberedOpen);
+  mobileRankingsToggle.addEventListener("click", () => {
+    const open = mobileRankingsToggle.getAttribute("aria-expanded") !== "true";
+    setRankingsOpen(open);
+    try { sessionStorage.setItem(storageKey, String(open)); } catch { /* Keep working without storage. */ }
+  });
+}
 
 async function initialize(experimentLabReady = Promise.resolve()) {
   const params = new URLSearchParams(window.location.search);
-  const requestedStatVersion = params.get("stat_version");
+  // The Ranking picker is gone and V13 is the statistic (note of 2026-09-27):
+  // a link naming another official statistic opens on the default instead of
+  // on a statistic the page gives no way back from. An experiment named by a
+  // link is still honoured.
+  const linkedStatVersion = params.get("stat_version");
+  const requestedStatVersion = OFFICIAL_RANKING_SLUGS.has(linkedStatVersion) ? null : linkedStatVersion;
   state.requestedStatVersion = requestedStatVersion;
   let unavailableLocalExperimentMessage = null;
+  let localDefaultSource = "original";
 
   try {
     state.multiSeasonModule = await import("./multi-season-rankings.js?v=20260902-multi-season-v1");
-    const response = await fetch("/api/rankings/options");
-    if (!response.ok) throw new Error("The season list could not be loaded.");
-    const payload = await response.json();
+    state.rankingsVisualModule = await import("./rankings-visuals.js?v=v13-charts-20260927-19");
+    restoreOpenPanels(params);
+    state.rankingsVisualWorkspace = state.rankingsVisualModule.createRankingsVisualWorkspace({
+      panelElements: elements.chartPanels,
+      onPanelsChange: () => {
+        rememberOpenPanels();
+        // Panels restored from a link open before the page has chosen its
+        // statistic and seasons; writing the address then would record the
+        // placeholder values of the controls (V11, All Seasons) over the real ones.
+        // The first table load writes the whole address, open panels included.
+        if (state.rankingsPayload) syncUrl();
+      },
+      // The table above every chart already says what the selection is, so the
+      // charts on this page no longer print "N of M drawn".
+      drawnNotes: false,
+      loadVisualPayload: loadRankingsVisualPayload,
+      loadComparisonPayload: loadRankingsComparisonPayload,
+      loadHistoryPayload: loadRankingsHistoryPayload,
+      loadTypeTrendsPayload: loadRankingsTypeTrendsPayload,
+    });
+    let serverDefaultSource = null;
+    let v11Options = null;
+    let v10Options = null;
+    try {
+      const sourceResponse = await fetch("/api/sources");
+      if (sourceResponse.ok) {
+        const sourcePayload = await sourceResponse.json();
+        // With the switch off the site publishes one statistic, the default,
+        // so the hidden picker holds nothing else a link could name (note of
+        // 2026-09-28).
+        const offered = new Set(
+          (sourcePayload.sources ?? [])
+            .map((row) => row.id)
+            .filter((id) => EXPERIMENTS_ON || id === sourcePayload.default_source),
+        );
+        state.offeredSources = offered;
+        // Every earlier official statistic is offered only when /api/sources
+        // lists it, so a deployment that publishes V11 alone shows V11 alone.
+        OFFICIAL_RANKINGS
+          .filter((ranking) => ranking.value !== "v11")
+          .forEach((ranking) => setOfficialRankingOption(
+            ranking.value,
+            ranking.label,
+            { present: offered.has(SOURCE_ID_FOR_RANKING[ranking.value] ?? ranking.value) },
+          ));
+        serverDefaultSource = RANKING_FOR_SOURCE_ID[sourcePayload.default_source]
+          ?? sourcePayload.default_source
+          ?? null;
+        // The seasons each server statistic has actually calculated. V12
+        // seasons arrive one completed run at a time, so its picker offers
+        // only those while the page season list stays the full V11 history.
+        state.sourceSeasonEndYears = Object.fromEntries(
+          (sourcePayload.sources ?? [])
+            .filter((row) => Array.isArray(row.season_end_years))
+            .map((row) => [row.id, new Set(row.season_end_years.map(Number))]),
+        );
+        // A statistic that describes itself (V12, V13) is described on the page.
+        state.sourceDescriptions = Object.fromEntries(
+          (sourcePayload.sources ?? [])
+            .filter((row) => typeof row.description === "string" && row.description)
+            .map((row) => [row.id, row.description]),
+        );
+      }
+    } catch {
+      serverDefaultSource = null;
+    }
+    try {
+      // V11 is the official statistic; it stays in the selector for as long as
+      // at least one season has been calculated. When the site offers V13
+      // alone the page bootstraps from the V13 options, as the published site
+      // does, so the V11 options are not asked for.
+      const v11Offered = !state.offeredSources || state.offeredSources.has("v11");
+      const v11Response = v11Offered ? await fetch("/api/v11/options") : null;
+      v11Options = v11Response?.ok ? await v11Response.json() : null;
+      setOfficialRankingOption("v11", "V11", {
+        present: (v11Options?.seasons ?? []).length > 0 && v11Offered,
+      });
+    } catch {
+      // V11 leaves the selector when its API is unavailable.
+      v11Options = null;
+      setOfficialRankingOption("v11", "V11", { present: false });
+    }
+    localDefaultSource = defaultOfficialRanking(serverDefaultSource);
+    // The page bootstraps its season list, game-time modes and run ids from the
+    // options endpoint of the statistic it is about to show. V9 owns
+    // /api/rankings/options; V10 and V11 each answer for themselves.
+    const bootstrapSource = OFFICIAL_RANKING_SLUGS.has(requestedStatVersion)
+      && officialRankingValues().has(requestedStatVersion)
+      ? requestedStatVersion
+      : localDefaultSource;
+    if (bootstrapSource === "v10" && !v10Options) {
+      const v10Response = await fetch("/api/v10/options");
+      v10Options = v10Response.ok ? await v10Response.json() : null;
+    }
+    // V12 opens on the V11 season list when V11 has one, and narrows it to
+    // its own completed seasons (updateSourceSeasonAvailability), so moving
+    // between the two never loses a season from the picker.
+    let v12Options = null;
+    if (bootstrapSource === "v12" && !(v11Options?.seasons ?? []).length) {
+      const v12Response = await fetch("/api/v12/options");
+      v12Options = v12Response.ok ? await v12Response.json() : null;
+    }
+    // V13 opens the same way: on the V11 season list, narrowed to the
+    // seasons V13 has completed; its own list only when V11 has none.
+    let v13Options = null;
+    if (bootstrapSource === "v13" && !(v11Options?.seasons ?? []).length) {
+      const v13Response = await fetch("/api/v13/options");
+      v13Options = v13Response.ok ? await v13Response.json() : null;
+    }
+    const payload = bootstrapSource === "v11"
+      ? serverBootstrapOptions("v11", v11Options)
+      : bootstrapSource === "v12"
+        ? serverBootstrapOptions("v12", v12Options ?? v11Options)
+        : bootstrapSource === "v13"
+        ? serverBootstrapOptions("v13", v13Options ?? v11Options)
+        : bootstrapSource === "v10"
+        ? serverBootstrapOptions("v10", v10Options)
+        : await originalBootstrapOptions();
     state.officialRunIds = Object.fromEntries(
       (payload.stat_versions || []).map((row) => [row.value, row.run_id]),
     );
@@ -4586,17 +5963,24 @@ async function initialize(experimentLabReady = Promise.resolve()) {
       || state.officialRunIds.original
       || payload.run?.run_id
       || null;
-    const localExperimentRequested = String(requestedStatVersion || "")
-      .startsWith("experiment:");
+    // A shared link can still name an experiment — `experiment:<id>` from the
+    // browser lab, `local:<id>` from an older one. Neither exists with the
+    // switch off, so the page says one plain line and shows the official
+    // statistic instead of failing.
+    const localExperimentRequested = /^(experiment|local):/.test(
+      String(requestedStatVersion || ""),
+    );
     if (localExperimentRequested) await experimentLabReady;
     const availableStatVersions = Array.from(
       elements.statVersion.options,
       (option) => option.value,
     );
     if (localExperimentRequested && !availableStatVersions.includes(requestedStatVersion)) {
-      unavailableLocalExperimentMessage =
-        "The requested browser-local experiment is not complete or available in this browser. Original is shown instead.";
-      elements.statVersion.value = "original";
+      unavailableLocalExperimentMessage = EXPERIMENTS_ON
+        ? "The requested browser-local experiment is not complete or available in this browser."
+          + ` ${officialRankingLabel(localDefaultSource)} is shown instead.`
+        : `Experiments are switched off for now, so ${officialRankingLabel(localDefaultSource)} is shown instead.`;
+      elements.statVersion.value = localDefaultSource;
       state.requestedStatVersion = null;
     }
     if (!unavailableLocalExperimentMessage && (
@@ -4606,11 +5990,15 @@ async function initialize(experimentLabReady = Promise.resolve()) {
       elements.statVersion.value = requestedStatVersion;
       state.requestedStatVersion = null;
     } else {
-      elements.statVersion.value = "original";
+      elements.statVersion.value = localDefaultSource;
     }
-    elements.breakdownMode.value = params.get("breakdown_mode") === "wc"
-      ? "wc"
-      : "vc";
+    if (!elements.statVersion.value) {
+      // A deep link can name a statistic this server does not serve.
+      elements.statVersion.value = localDefaultSource;
+    }
+    elements.breakdownMode.value = params.get("breakdown_mode") === "vc"
+      ? "vc"
+      : "wc";
 
     elements.season.innerHTML = payload.seasons
       .map(
@@ -4635,19 +6023,6 @@ async function initialize(experimentLabReady = Promise.resolve()) {
       ? requestedGarbageTimeMode
       : payload.default_garbage_time_mode;
 
-    elements.topGamesSeason.innerHTML = payload.seasons
-      .map(
-        (season) =>
-          `<option value="${escapeHtml(season)}">${escapeHtml(
-            season === "All Seasons" ? "All seasons" : season,
-          )}</option>`,
-      )
-      .join("");
-    const requestedGameSeason = params.get("game_season");
-    elements.topGamesSeason.value = payload.seasons.includes(requestedGameSeason)
-      ? requestedGameSeason
-      : "All Seasons";
-
     const validPhases = ["All", "Regular Season", "PlayIn", "Playoffs", "Postseason"];
     const requestedPhase = params.get("phase");
     elements.phase.value = validPhases.includes(requestedPhase)
@@ -4655,9 +6030,9 @@ async function initialize(experimentLabReady = Promise.resolve()) {
       : "All";
     elements.search.value = params.get("search") || "";
     const requestedLimit = params.get("limit");
-    elements.limit.value = ["25", "50", "100", "250"].includes(requestedLimit)
+    elements.limit.value = ["25", "50", "100", "250", "all"].includes(requestedLimit)
       ? requestedLimit
-      : "25";
+      : DEFAULT_RANKING_LIMIT;
 
     const requestedTrendPhase = params.get("trend_phase");
     const validTrendPhases = ["All", "Regular Season", "Postseason"];
@@ -4688,7 +6063,7 @@ async function initialize(experimentLabReady = Promise.resolve()) {
     if (liftWindowInput) liftWindowInput.checked = true;
 
     const requestedLiftGroup = params.get("lift_group");
-    const liftGroup = ["top", "bottom", "both"].includes(requestedLiftGroup)
+    const liftGroup = ["top", "bottom"].includes(requestedLiftGroup)
       ? requestedLiftGroup
       : "top";
     const liftGroupInput = document.querySelector(
@@ -4696,15 +6071,18 @@ async function initialize(experimentLabReady = Promise.resolve()) {
     );
     if (liftGroupInput) liftGroupInput.checked = true;
 
-    const requestedGamePhase = params.get("game_phase");
-    elements.topGamesPhase.value = [
-      "All",
-      "Regular Season",
-      "Playoffs",
-      "Postseason",
-    ].includes(requestedGamePhase)
-      ? requestedGamePhase
-      : "All";
+    // The panel reads one schedule or the other now. A link written when it
+    // was a dropdown may still say "All" or "Playoffs": both fall to the
+    // regular season, which is what the panel opens on.
+    const gamePhase = ["Regular Season", "Postseason"].includes(
+      params.get("game_phase"),
+    )
+      ? params.get("game_phase")
+      : "Regular Season";
+    const gamePhaseInput = document.querySelector(
+      `input[name="top-games-phase"][value="${gamePhase}"]`,
+    );
+    if (gamePhaseInput) gamePhaseInput.checked = true;
 
     const requestedGameOutcome = params.get("game_outcome");
     const gameOutcome = ["Both", "Wins", "Losses"].includes(requestedGameOutcome)
@@ -4715,36 +6093,30 @@ async function initialize(experimentLabReady = Promise.resolve()) {
     );
     if (gameOutcomeInput) gameOutcomeInput.checked = true;
 
-    const requestedGameLimit = params.get("game_limit");
-    elements.topGamesLimit.value = ["25", "50", "100"].includes(requestedGameLimit)
-      ? requestedGameLimit
-      : "25";
+    const requestedSeasonWinsLimit = params.get("season_wins_limit");
+    if (elements.seasonWinsLimit) {
+      elements.seasonWinsLimit.value = ["25", "35", "60"].includes(
+        requestedSeasonWinsLimit,
+      )
+        ? requestedSeasonWinsLimit
+        : "25";
+    }
 
-    const requestedSort = params.get("sort_by");
+    const requestedSort = LEGACY_CONTEXT_SORTS[params.get("sort_by")] ?? params.get("sort_by");
     const validSorts = [
       "value_contributed",
       "wins_contributed",
       "losses_contributed",
       "value_per_game",
-      "value_per_game_rank",
-      "postseason_value_per_game_difference",
-      "postseason_rank_change",
       "games_played",
       "wins",
       "losses",
       "offense_value",
       "defense_value",
       "hustle_value",
-      "other_value",
-      "side_context_raw_value",
-      "offense_context_value",
-      "defense_context_value",
-      "general_offense_context_value",
-      "general_defense_context_value",
-      "teammate_offense_context_value",
-      "opponent_offense_context_value",
-      "teammate_defense_context_value",
-      "opponent_defense_context_value",
+      "side_context_raw_pct",
+      "offense_context_pct",
+      "defense_context_pct",
     ];
     state.sortBy = validSorts.includes(requestedSort)
       ? requestedSort
@@ -4764,15 +6136,17 @@ async function initialize(experimentLabReady = Promise.resolve()) {
       : "games_played";
     state.highValueSortDirection =
       params.get("high_value_sort_direction") === "asc" ? "asc" : "desc";
-    const requestedHighValuePhase = params.get("high_value_phase");
-    elements.highValuePhase.value = [
-      "All",
-      "Regular Season",
-      "Playoffs",
-      "Postseason",
-    ].includes(requestedHighValuePhase)
-      ? requestedHighValuePhase
-      : "All";
+    // Same fallback as the games panel: an older link that names All or
+    // Playoffs lands on the regular season.
+    const highValuePhase = ["Regular Season", "Postseason"].includes(
+      params.get("high_value_phase"),
+    )
+      ? params.get("high_value_phase")
+      : "Regular Season";
+    const highValuePhaseInput = document.querySelector(
+      `input[name="high-value-phase"][value="${highValuePhase}"]`,
+    );
+    if (highValuePhaseInput) highValuePhaseInput.checked = true;
 
     restorePlayerContextSelection(params);
     updateV8Presentation();
@@ -4788,7 +6162,6 @@ async function initialize(experimentLabReady = Promise.resolve()) {
     elements.body.innerHTML = "";
     elements.error.textContent = error.message;
     elements.error.hidden = false;
-    elements.title.textContent = "Dashboard unavailable";
     elements.trendChart.innerHTML = "";
     elements.liftChart.innerHTML = "";
     elements.topGamesBody.innerHTML = "";
@@ -4812,11 +6185,6 @@ elements.season.addEventListener("change", () => {
 elements.seasonCheckboxes.addEventListener("change", (event) => {
   const input = event.target.closest('input[type="checkbox"]');
   if (!input) return;
-  if (!checkedRankingSeasons().length) {
-    input.checked = true;
-    updateSeasonPickerPresentation({ message: "Keep at least one season checked." });
-    return;
-  }
   updateSeasonPickerPresentation();
 });
 elements.seasonShortcuts.forEach((button) => {
@@ -4829,7 +6197,6 @@ elements.phase.addEventListener("change", () => {
 });
 elements.statVersion.addEventListener("change", async () => {
   if (!hasPlayerContext()) closePlayerContext();
-  if (isFullLineupExperiment()) state.contextColumnsExpanded = false;
   const generation = resetDeferredPanelLoads();
   await updateSourceSeasonAvailability();
   if (generation !== state.deferredPanelGeneration) return;
@@ -4875,17 +6242,20 @@ elements.contextPageNext.addEventListener("click", () => {
   syncUrl();
   loadPlayerContext();
 });
-elements.topGamesSeason.addEventListener("change", () => reloadDeferredPanel("topGames"));
-elements.topGamesPhase.addEventListener("change", () => reloadDeferredPanel("topGames"));
+elements.topGamesPhases.forEach((input) => {
+  input.addEventListener("change", () => reloadDeferredPanel("topGames"));
+});
 elements.topGamesOutcomes.forEach((input) => {
   input.addEventListener("change", () => reloadDeferredPanel("topGames"));
 });
-elements.topGamesLimit.addEventListener("change", () => reloadDeferredPanel("topGames"));
 elements.seasonWinsPhases.forEach((input) => {
   input.addEventListener("change", () => reloadDeferredPanel("seasonWins"));
 });
-elements.highValuePhase.addEventListener("change", () => {
-  reloadDeferredPanel("highValueRecords");
+elements.seasonWinsLimit?.addEventListener("change", () => {
+  reloadDeferredPanel("seasonWins");
+});
+elements.highValuePhases.forEach((input) => {
+  input.addEventListener("change", () => reloadDeferredPanel("highValueRecords"));
 });
 elements.highValueSortableHeadings.forEach((heading) => {
   const button = heading.querySelector("button[data-high-value-sort]");
@@ -4944,27 +6314,14 @@ elements.sortableHeadings.forEach((heading) => {
       state.sortDirection = state.sortDirection === "desc" ? "asc" : "desc";
     } else {
       state.sortBy = sortBy;
-      state.sortDirection = sortBy === "value_per_game_rank" ? "asc" : "desc";
+      state.sortDirection = "desc";
     }
     loadRankings();
   });
 });
-elements.recordColumnsToggle.addEventListener("click", () => {
-  state.recordColumnsExpanded = !state.recordColumnsExpanded;
-  updateColumnGroupPresentation();
-  const placeholder = elements.body.querySelector(".loading-row td, .empty-row td");
-  if (placeholder) placeholder.colSpan = visibleRankingColumnCount();
-});
-elements.contextColumnsToggle.addEventListener("click", () => {
-  state.contextColumnsExpanded = !state.contextColumnsExpanded;
-  updateColumnGroupPresentation();
-  const placeholder = elements.body.querySelector(".loading-row td, .empty-row td");
-  if (placeholder) placeholder.colSpan = visibleRankingColumnCount();
-});
 elements.mobileSort.addEventListener("change", () => {
   state.sortBy = elements.mobileSort.value;
-  state.sortDirection =
-    state.sortBy === "value_per_game_rank" ? "asc" : "desc";
+  state.sortDirection = "desc";
   loadRankings();
 });
 elements.mobileSortDirection.addEventListener("click", () => {
@@ -4979,56 +6336,60 @@ window.addEventListener("resize", () => {
   matchLegendHeightToChart(elements.trendChart, elements.trendLegend);
   matchLegendHeightToChart(elements.liftChart, elements.liftLegend);
 });
-elements.closeExperimentBuilder.addEventListener("click", () => elements.experimentDialog.close());
-elements.experimentDialog.addEventListener("cancel", (event) => {
-  event.preventDefault();
-  elements.experimentDialog.close();
-});
-elements.experimentDialog.addEventListener("click", (event) => {
-  if (event.target === elements.experimentDialog) elements.experimentDialog.close();
-});
-elements.experimentAllSeasons.addEventListener("change", () => {
-  syncAllSeasonsSelection({ fromCheckbox: true });
-});
-elements.experimentSeasons.addEventListener("change", () => syncAllSeasonsSelection());
-elements.confirmAllSeasons.addEventListener("change", invalidateExperimentReview);
-elements.linkReliabilityK.addEventListener("change", () => syncLinkedSideControl("k"));
-elements.linkLambda.addEventListener("change", () => syncLinkedSideControl("lambda"));
-elements.reliabilityKOffense.addEventListener("input", () => {
-  if (elements.linkReliabilityK.checked) {
-    elements.reliabilityKDefense.value = elements.reliabilityKOffense.value;
-  }
-  invalidateExperimentReview();
-});
-elements.lambdaOffense.addEventListener("input", () => {
-  if (elements.linkLambda.checked) elements.lambdaDefense.value = elements.lambdaOffense.value;
-  invalidateExperimentReview();
-});
-elements.reliabilityKDefense.addEventListener("input", invalidateExperimentReview);
-elements.lambdaDefense.addEventListener("input", invalidateExperimentReview);
-elements.experimentName.addEventListener("input", invalidateExperimentReview);
-elements.rawMultiplierControls.querySelectorAll("[data-raw-group]").forEach((input) => {
-  input.addEventListener("input", () => {
-    elements.rawMultiplierControls.dataset.activeRawGroup = input.dataset.rawGroup;
-    syncRawMultiplierDisplays();
+// Every control below belongs to the browser-local experiment builder, whose
+// markup the page only carries when the switch is on.
+if (EXPERIMENTS_ON) {
+  elements.closeExperimentBuilder.addEventListener("click", () => elements.experimentDialog.close());
+  elements.experimentDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    elements.experimentDialog.close();
+  });
+  elements.experimentDialog.addEventListener("click", (event) => {
+    if (event.target === elements.experimentDialog) elements.experimentDialog.close();
+  });
+  elements.experimentAllSeasons.addEventListener("change", () => {
+    syncAllSeasonsSelection({ fromCheckbox: true });
+  });
+  elements.experimentSeasons.addEventListener("change", () => syncAllSeasonsSelection());
+  elements.confirmAllSeasons.addEventListener("change", invalidateExperimentReview);
+  elements.linkReliabilityK.addEventListener("change", () => syncLinkedSideControl("k"));
+  elements.linkLambda.addEventListener("change", () => syncLinkedSideControl("lambda"));
+  elements.reliabilityKOffense.addEventListener("input", () => {
+    if (elements.linkReliabilityK.checked) {
+      elements.reliabilityKDefense.value = elements.reliabilityKOffense.value;
+    }
+    invalidateExperimentReview();
+  });
+  elements.lambdaOffense.addEventListener("input", () => {
+    if (elements.linkLambda.checked) elements.lambdaDefense.value = elements.lambdaOffense.value;
+    invalidateExperimentReview();
+  });
+  elements.reliabilityKDefense.addEventListener("input", invalidateExperimentReview);
+  elements.lambdaDefense.addEventListener("input", invalidateExperimentReview);
+  elements.experimentName.addEventListener("input", invalidateExperimentReview);
+  elements.rawMultiplierControls.querySelectorAll("[data-raw-group]").forEach((input) => {
+    input.addEventListener("input", () => {
+      elements.rawMultiplierControls.dataset.activeRawGroup = input.dataset.rawGroup;
+      syncRawMultiplierDisplays();
+      refreshAdvancedStates();
+      invalidateExperimentReview();
+    });
+  });
+  elements.contextMagnifierControls.querySelectorAll("[data-context-key]").forEach((input) => {
+    input.addEventListener("input", invalidateExperimentReview);
+  });
+  elements.resetAllAdvanced.addEventListener("click", () => {
+    elements.advancedOutcomeGroups.querySelectorAll("[data-coefficient-key]").forEach((input) => {
+      input.value = "";
+    });
     refreshAdvancedStates();
     invalidateExperimentReview();
   });
-});
-elements.contextMagnifierControls.querySelectorAll("[data-context-key]").forEach((input) => {
-  input.addEventListener("input", invalidateExperimentReview);
-});
-elements.resetAllAdvanced.addEventListener("click", () => {
-  elements.advancedOutcomeGroups.querySelectorAll("[data-coefficient-key]").forEach((input) => {
-    input.value = "";
-  });
-  refreshAdvancedStates();
-  invalidateExperimentReview();
-});
-elements.resetExperiment.addEventListener("click", resetExperimentEditor);
-elements.experimentForm.addEventListener("submit", startExperimentRun);
-elements.cancelExperiment.addEventListener("click", cancelExperimentRun);
-elements.localExperimentList.addEventListener("click", handleLocalExperimentAction);
+  elements.resetExperiment.addEventListener("click", resetExperimentEditor);
+  elements.experimentForm.addEventListener("submit", startExperimentRun);
+  elements.cancelExperiment.addEventListener("click", cancelExperimentRun);
+  elements.localExperimentList.addEventListener("click", handleLocalExperimentAction);
+}
 elements.shareRankingCard.addEventListener("click", shareCurrentRankingCard);
 elements.nativeShareRankingCard.addEventListener("click", nativeShareRankingCard);
 elements.copyRankingCard.addEventListener("click", copyRankingCardImage);
@@ -5062,9 +6423,8 @@ window.addEventListener("popstate", async () => {
     elements.garbageTimeMode.value = requestedTimeMode;
   }
   const requestedLimit = params.get("limit");
-  if (optionValues(elements.limit).includes(requestedLimit)) {
-    elements.limit.value = requestedLimit;
-  }
+  elements.limit.value = optionValues(elements.limit).includes(requestedLimit)
+    ? requestedLimit : DEFAULT_RANKING_LIMIT;
   elements.search.value = params.get("search") || "";
   const requestedSort = params.get("sort_by");
   if (optionValues(elements.mobileSort).includes(requestedSort)) {
@@ -5072,9 +6432,9 @@ window.addEventListener("popstate", async () => {
   }
   state.sortDirection = params.get("sort_direction") === "asc" ? "asc" : "desc";
   if (isV8()) {
-    elements.breakdownMode.value = params.get("breakdown_mode") === "wc"
-      ? "wc"
-      : "vc";
+    elements.breakdownMode.value = params.get("breakdown_mode") === "vc"
+      ? "vc"
+      : "wc";
   }
   if (!restorePlayerContextSelection(params)) {
     closePlayerContext({ updateUrl: false });
@@ -5093,12 +6453,48 @@ window.addEventListener("popstate", async () => {
   }
 });
 
+// On a phone the filters fold behind one bar that says what they are set to,
+// so the player cards come first (owner's note, 2026-09-27). The bar and the
+// fold only exist at phone width; a desktop always shows the filters.
+function setupFilterToggle() {
+  const toggle = document.querySelector("#filters-toggle");
+  const filters = document.querySelector("#ranking-filters");
+  const summary = document.querySelector("#filters-summary");
+  if (!toggle || !filters) return;
+  const describe = () => {
+    const chosen = (select) => select?.selectedOptions?.[0]?.textContent?.trim() ?? "";
+    summary.textContent = [
+      elements.seasonSelectionSummary?.textContent?.trim(),
+      chosen(elements.phase),
+      chosen(document.querySelector("#limit")),
+    ].filter(Boolean).join(" · ");
+  };
+  toggle.addEventListener("click", () => {
+    describe();
+    const open = filters.classList.toggle("is-collapsed") === false;
+    toggle.setAttribute("aria-expanded", String(open));
+  });
+  filters.addEventListener("change", () => requestAnimationFrame(describe));
+  filters.addEventListener("click", () => requestAnimationFrame(describe));
+  new MutationObserver(describe).observe(elements.seasonSelectionSummary, { childList: true, characterData: true, subtree: true });
+  describe();
+}
+
+setupFilterToggle();
 setupMobileCharts();
 setupDeferredPanelLoading();
-resetExperimentEditor();
 initializeRankingCardSharing();
-const experimentLabReady = initializeExperimentLab();
-initialize(experimentLabReady);
-if (/\/experiments\/?$/.test(window.location.pathname)) {
-  openExperimentBuilder();
+// With the switch off nothing experimental is started: no /api/v10-*-experiments
+// probe, no browser runtime module, no worker and no IndexedDB. This is the one
+// place any of that begins, so the whole feature is one branch away.
+if (EXPERIMENTS_ON) {
+  resetExperimentEditor();
+  const serverExperimentReady = refreshServerExperiments();
+  const experimentLabReady = initializeExperimentLab();
+  initialize(Promise.all([serverExperimentReady, experimentLabReady]));
+  if (/\/experiments\/?$/.test(window.location.pathname)) {
+    openExperimentBuilder();
+  }
+} else {
+  initialize();
 }

@@ -288,7 +288,13 @@ function preserveFlooredEligibility(rows) {
         // Try the next disclosed amount cell.
       }
     }
-    if (!closed) throw calculationError("floored_display_close_failed", `Player ${row.player_id} cannot return to exact zero.`);
+    if (!closed) {
+      throw calculationError(
+        "floored_display_close_failed",
+        "One player's shares cannot return to exact zero.",
+        { player_id: row.player_id },
+      );
+    }
     output[index] = replaceContextAmounts(row, closed.values, closed.close_key, amounts[closed.close_key]);
   }
   let teamTotal = fsum(output.map((row) => row.final_value_contributed));
@@ -389,7 +395,11 @@ function componentEvidence(rows, componentOrder) {
       const adjustedSide = row[`adjusted_${side}`];
       const scale = side === "other" || rawSide === 0 ? 1 : adjustedSide / rawSide;
       if (!(scale > 0) || !Number.isFinite(scale) || (rawSide === 0 && adjustedSide !== 0)) {
-        throw calculationError("responsibility_scale_invalid", `Player ${row.player_id} ${side} scale is invalid.`);
+        throw calculationError(
+          "responsibility_scale_invalid",
+          `One player's ${side} scale is invalid.`,
+          { player_id: row.player_id },
+        );
       }
       const scaled = Object.fromEntries((componentOrder[side] || [])
         .filter((key) => Object.hasOwn(row.raw_components[side], key))
@@ -461,7 +471,13 @@ function allocateResponsibility(rows, componentOrder) {
     const basisTotal = fsum(SIDES.map((side) => basis[side]));
     let formula = { offense: 0, defense: 0, other: 0 };
     if (row.final_value_contributed > 0) {
-      if (basisTotal === 0) throw calculationError("responsibility_evidence_missing", `Player ${row.player_id} has no responsibility evidence.`);
+      if (basisTotal === 0) {
+        throw calculationError(
+          "responsibility_evidence_missing",
+          "One player has no responsibility evidence.",
+          { player_id: row.player_id },
+        );
+      }
       formula = Object.fromEntries(SIDES.map((side) => [
         side,
         row.final_value_contributed * (basis[side] / basisTotal),
@@ -560,14 +576,24 @@ function verifyTeamOutput(rows) {
     if (!bitIdentical(
       fsum([row.raw_vc, ...CONTEXT_FACTOR_ORDER.map((factor) => row.context_components[factor])]),
       row.final_value_contributed,
-    )) throw calculationError("context_identity_failed", `Player ${row.player_id} Raw plus six does not close.`);
+    )) {
+      throw calculationError(
+        "context_identity_failed",
+        "One player's Raw plus six does not close.",
+        { player_id: row.player_id },
+      );
+    }
     if (!bitIdentical(fsum(SIDES.map((side) => row.responsibility[side])), row.final_value_contributed)) {
-      throw calculationError("responsibility_identity_failed", `Player ${row.player_id} responsibility does not close.`);
+      throw calculationError(
+        "responsibility_identity_failed",
+        "One player's responsibility does not close.",
+        { player_id: row.player_id },
+      );
     }
   }
 }
 
-export function calculateOriginalBrowserTeams({ players, contextOperands, coefficientBasis, responsibilityMetadata, configuration }) {
+export function* calculateOriginalBrowserGames({ players, contextOperands, coefficientBasis, responsibilityMetadata, configuration }) {
   const order = componentOrder(responsibilityMetadata);
   const basis = evaluateCoefficientBasis(coefficientBasis, configuration);
   const contextByPlayer = new Map(contextOperands.map((row) => [identity(row.game_id, row.time_mode, row.player_id), row]));
@@ -576,7 +602,11 @@ export function calculateOriginalBrowserTeams({ players, contextOperands, coeffi
   for (const player of rawPlayers) {
     const context = contextByPlayer.get(identity(player.game_id, player.time_mode, player.player_id));
     if (!context || Number(context.team_id) !== Number(player.team_id)) {
-      throw calculationError("context_roster_mismatch", `Context is missing for player ${player.player_id}.`);
+      throw calculationError(
+        "context_roster_mismatch",
+        "Context is missing for one player on this roster.",
+        { player_id: player.player_id },
+      );
     }
     const enriched = {
       ...player,
@@ -587,13 +617,26 @@ export function calculateOriginalBrowserTeams({ players, contextOperands, coeffi
     if (!teams.has(key)) teams.set(key, []);
     teams.get(key).push(enriched);
   }
-  const output = [];
-  for (const [key, teamPlayers] of [...teams].sort(([left], [right]) => left.localeCompare(right))) {
+  let activeGameId = null;
+  let gameRows = [];
+  for (const [, teamPlayers] of [...teams].sort(([left], [right]) => left.localeCompare(right))) {
     const ordered = teamPlayers.sort((left, right) => left.player_id - right.player_id);
+    const gameId = String(ordered[0].game_id);
+    if (activeGameId !== null && gameId !== activeGameId) {
+      yield { gameId: activeGameId, rows: gameRows };
+      gameRows = [];
+    }
+    activeGameId = gameId;
     const responsible = allocateResponsibility(decomposeTeam(ordered), order);
     verifyTeamOutput(responsible);
-    output.push(...responsible);
+    gameRows.push(...responsible);
   }
+  if (activeGameId !== null) yield { gameId: activeGameId, rows: gameRows };
+}
+
+export function calculateOriginalBrowserTeams(input) {
+  const output = [];
+  for (const game of calculateOriginalBrowserGames(input)) output.push(...game.rows);
   return output;
 }
 
@@ -643,7 +686,13 @@ export function verifyOfficialParity(rows, officialOutputs, configuration) {
   let maximum = 0;
   for (const row of rows) {
     const target = expected.get(identity(row.game_id, row.time_mode, row.player_id));
-    if (!target) throw calculationError("official_parity_coverage", `Official ${slug} is missing player ${row.player_id}.`);
+    if (!target) {
+      throw calculationError(
+        "official_parity_coverage",
+        `Official ${slug} is missing one of this game's players.`,
+        { game_id: row.game_id, player_id: row.player_id },
+      );
+    }
     const pairs = [
       ["raw_vc", row.raw_vc, target.raw_vc],
       ...CONTEXT_FACTOR_ORDER.map((factor, index) => [
@@ -660,7 +709,8 @@ export function verifyOfficialParity(rows, officialOutputs, configuration) {
       const residual = Math.abs(actual - wanted);
       maximum = Math.max(maximum, residual);
       if (!approximate(actual, wanted)) {
-        throw calculationError("official_parity_failed", `Browser ${slug} differs at ${row.game_id}/${row.time_mode}/${row.player_id}.`, {
+        throw calculationError("official_parity_failed", `Browser ${slug} differs at ${row.game_id}/${row.time_mode}.`, {
+          player_id: row.player_id,
           actual,
           expected: wanted,
           field,

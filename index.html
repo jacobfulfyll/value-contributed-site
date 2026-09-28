@@ -3,172 +3,216 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="vc-experiments" content="off" />
     <meta name="original-package-manifest" content="./data/original-package-manifest.json" />
-    <meta name="original-package-manifest-sha256" content="9fc160dcb213dc7ea1eedd349c87aea8c88034b43b5c41dea5adbc2b6a1616fe" />
+    <meta name="original-package-manifest-sha256" content="" />
     <meta
       name="description"
-      content="A local, read-only browser for Value Contributed NBA player rankings."
+      content="Value Contributed V13 NBA player rankings from 2017-18 to 2025-26: every player and team, with garbage time in or out."
     />
     <title>Value Contributed Rankings</title>
+
+    <!-- The mark, the browser chrome colour and what a shared link says.
+         No og:image: the site has no honest one to point at, and the tree is
+         served from a host these pages do not know the name of. -->
+    <script src="dashboard-assets/v11-static-api.js"></script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2313251f'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='17' font-weight='700' text-anchor='middle' fill='%23d7ff54'%3EV%3C/text%3E%3C/svg%3E" />
+    <meta name="theme-color" content="#f4f0e7" />
+    <meta name="apple-mobile-web-app-title" content="Value Contributed" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Value Contributed" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="Value Contributed · NBA player rankings" />
+    <meta property="og:description" content="Value Contributed V13 NBA player rankings from 2017-18 to 2025-26: every player and team, with garbage time in or out." />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Value Contributed · NBA player rankings" />
+    <meta name="twitter:description" content="Value Contributed V13 NBA player rankings from 2017-18 to 2025-26: every player and team, with garbage time in or out." />
     <link
       rel="stylesheet"
-      href="dashboard-assets/styles.css?v=20260902-multi-season-v1"
+      href="dashboard-assets/styles.css?v=v13-charts-20260927-19"
     />
     <script
-      src="dashboard-assets/app.js?v=20260903-season-scope-v1"
+      src="dashboard-assets/team-directory.js?v=v11-team-directory-1"
       defer
     ></script>
-      <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://value-contributed-original-packages.jacob-press3.workers.dev; img-src 'self' data:; font-src 'self'; worker-src 'self'; form-action 'self'" />
-      <meta name="original-projection-manifest-url" content="./data/original-public-projection-manifest.json" />
-      <meta name="original-projection-manifest-sha256" content="2cfdcdcb59320f2b99a82a8f4342ee361264a203eb490833dfdba41e89eb24a5" />
-      <meta name="original-methodology-url" content="./data/methodology.json" />
-      <meta name="original-methodology-sha256" content="5e063c2b3e98c454bc4f84b6f22fbadc2bec90fd6a90a6b0e44a4bd247bd3d49" />
-      <script src="dashboard-assets/static-api.js"></script>
+    <script
+      src="dashboard-assets/name-fold.js?v=v11-name-fold-1"
+      defer
+    ></script>
+    <script
+      src="dashboard-assets/page-notice.js?v=v11-page-notice-1"
+      defer
+    ></script>
+    <script
+      src="dashboard-assets/app.js?v=v13-charts-20260927-19"
+      defer
+    ></script>
   </head>
   <body>
+    <noscript class="page-noscript">The rankings table is drawn in your browser, so JavaScript has to be on to read it.</noscript>
     <main class="shell">
       <nav class="site-nav" aria-label="Primary navigation">
         <a href="./" aria-current="page">Rankings</a>
-        <a href="experiments/">Experiments</a>
+        <a href="seasons/">Seasons</a>
+        <a href="players/">Players</a>
+        <a href="teams/">Teams</a>
+        
+        
         <a href="how-it-works/">Methodology</a>
       </nav>
 
       <header class="hero">
         <div>
-          <p class="eyebrow">NBA PLAYER VALUE · ORIGINAL</p>
-          <h1>Value Contributed rankings</h1>
+          <h1>Value Contributed</h1>
           <p class="lede">
-            Explore the complete Original history or calculate a private
-            experiment entirely in your browser.
+            A possession based contribution history of the NBA from 2017 - 2026.
           </p>
-        </div>
-        <div class="status-card" aria-label="Calculation status">
-          <span class="status-dot" aria-hidden="true"></span>
-          <div>
-            <strong>16,795 games · both time modes</strong>
-            <span>Anonymous · no analytics · experiments stay on this device</span>
-          </div>
         </div>
       </header>
 
-      <section class="controls" aria-label="Ranking filters">
-        <label class="control control-wide">
-          <span>Ranking</span>
-          <select
-            id="stat-version"
-            name="stat_version"
-            aria-label="Ranking source"
-          >
-            <optgroup label="Official Rankings" id="official-ranking-options">
-              <option value="original" selected>Original</option>
-            </optgroup>
-            <optgroup label="My Experiments" id="my-experiment-options">
-              <option value="local:none" disabled>No completed experiments on this device</option>
-            </optgroup>
-          </select>
-        </label>
 
-        <label id="breakdown-control" class="control control-wide" hidden>
-          <span>Responsibility view</span>
-          <select id="breakdown-mode" name="breakdown_mode">
-            <option value="vc">Value Contributed</option>
-            <option value="wc">Wins Contributed</option>
-          </select>
-        </label>
 
-        <div class="control season-ranking-control">
-          <span id="season-control-label">Seasons</span>
-          <details id="season-picker" class="season-ranking-picker">
-            <summary aria-labelledby="season-control-label season-selection-summary">
-              <span id="season-selection-summary">Choose seasons</span>
-              <span class="season-picker-chevron" aria-hidden="true">›</span>
-            </summary>
-            <div class="season-picker-panel">
-              <div class="season-picker-shortcuts" aria-label="Season range shortcuts">
-                <button type="button" data-season-shortcut="all">All</button>
-                <button type="button" data-season-shortcut="first-five">First 5</button>
-                <button type="button" data-season-shortcut="last-five">Last 5</button>
-              </div>
-              <div
-                id="season-checkboxes"
-                class="season-ranking-checkboxes"
-                role="group"
-                aria-labelledby="season-control-label"
-              ></div>
-              <p id="season-picker-status" class="season-picker-status" aria-live="polite"></p>
-              <button id="apply-seasons" class="season-picker-apply" type="button">Apply seasons</button>
-            </div>
-          </details>
-          <select
-            id="season"
-            name="season"
-            class="season-legacy-select"
-            aria-hidden="true"
-            tabindex="-1"
-          ></select>
-        </div>
+      <h2 id="results-title" class="page-section-title rankings-section-title">
+        <span class="rankings-desktop-title">Player rankings table</span>
+        <button id="mobile-rankings-toggle" type="button" aria-expanded="false" aria-controls="rankings-panel">
+          <span>Player rankings table</span><span class="rankings-toggle-action">Expand section +</span>
+        </button>
+      </h2>
 
-        <label class="control control-wide">
-          <span>Schedule</span>
-          <select id="phase" name="phase" aria-label="Schedule phase">
-            <option value="All">Full season</option>
-            <option value="Regular Season">Regular season</option>
-            <option value="PlayIn">Play-In</option>
-            <option value="Playoffs">Playoffs</option>
-            <option value="Postseason">Postseason (Play-In + Playoffs)</option>
-          </select>
-        </label>
-
-        <label class="control control-wide">
-          <span>Game time</span>
-          <select
-            id="garbage-time-mode"
-            name="garbage_time_mode"
-            aria-label="Garbage-time treatment"
-          >
-            <option value="competitive" selected>Exclude garbage time</option>
-            <option value="all_minutes">Include garbage time</option>
-          </select>
-        </label>
-
-        <label class="control search-control">
-          <span>Find a player</span>
-          <input
-            id="search"
-            name="search"
-            type="search"
-            placeholder="e.g. Jokić"
-            autocomplete="off"
-          />
-        </label>
-
-        <label class="control compact-control">
-          <span>Show</span>
-          <select id="limit" name="limit" aria-label="Number of results">
-            <option value="25" selected>Top 25</option>
-            <option value="50">Top 50</option>
-            <option value="100">Top 100</option>
-            <option value="250">Top 250</option>
-          </select>
-        </label>
-
-      </section>
-
-      <aside id="desktop-required-message" class="desktop-required-message" role="status" hidden>
-        <strong>A desktop browser is required to create or run experiments.</strong>
-        <span>You can still browse official rankings and create shareable ranking cards on this phone.</span>
-      </aside>
-
-      <section class="results" aria-labelledby="results-title">
-        <div class="results-heading">
-          <div>
-            <p class="section-label">PLAYER RANKINGS</p>
-            <h2 id="results-title">Loading calculated output…</h2>
-          </div>
-          <p id="results-meta" class="results-meta" aria-live="polite"></p>
-        </div>
-
+      <section id="rankings-panel" class="results is-mobile-collapsed" aria-labelledby="results-title">
         <div id="error" class="error-message" role="alert" hidden></div>
+
+        <!-- The card's own header row: what the table is showing, in words, and
+             the ranking card the reader can share. It sits above the filters so
+             a reader meets the scope before the controls that set it, and so
+             the share button no longer costs the table a row of its own. -->
+        <div class="results-heading table-card-header">
+          <h2 id="results-scope-title">Player value</h2>
+          <div class="ranking-share-control">
+            <output id="share-status" class="share-status" aria-live="polite"></output>
+            <button
+              id="share-ranking-card"
+              class="share-ranking-card-action"
+              type="button"
+              disabled
+            >
+              Share ranking card
+            </button>
+          </div>
+        </div>
+
+        <!-- On a phone the filters fold behind one bar, so the cards come first
+             (owner's note, 2026-09-27). -->
+        <button id="filters-toggle" class="filters-toggle" type="button" aria-expanded="false" aria-controls="ranking-filters">
+          <span>Filters</span><span id="filters-summary" class="filters-summary"></span><span class="filters-chevron" aria-hidden="true">⌄</span>
+        </button>
+        <section id="ranking-filters" class="controls is-collapsed" aria-label="Ranking filters">
+          <div class="control season-ranking-control">
+            <span id="season-control-label">Seasons</span>
+            <details id="season-picker" class="season-ranking-picker">
+              <summary aria-labelledby="season-control-label season-selection-summary">
+                <span id="season-selection-summary">Choose seasons</span>
+                <span class="season-picker-chevron" aria-hidden="true">›</span>
+              </summary>
+              <div class="season-picker-panel">
+                <div class="season-picker-shortcuts" aria-label="Season range shortcuts">
+                  <button type="button" data-season-shortcut="all">All</button>
+                  <button type="button" data-season-shortcut="first-five">First 5</button>
+                  <button type="button" data-season-shortcut="last-five">Last 5</button>
+                  <button type="button" data-season-shortcut="none">Unselect all</button>
+                </div>
+                <div
+                  id="season-checkboxes"
+                  class="season-ranking-checkboxes"
+                  role="group"
+                  aria-labelledby="season-control-label"
+                ></div>
+                <p id="season-picker-status" class="season-picker-status" aria-live="polite"></p>
+                <button id="apply-seasons" class="season-picker-apply" type="button">Apply seasons</button>
+              </div>
+            </details>
+            <select
+              id="season"
+              name="season"
+              class="season-legacy-select"
+              aria-hidden="true"
+              tabindex="-1"
+            ></select>
+          </div>
+
+          <label class="control control-wide">
+            <span>Schedule</span>
+            <select id="phase" name="phase" aria-label="Schedule phase">
+              <option value="All">Full season</option>
+              <option value="Regular Season">Regular season</option>
+              <option value="PlayIn">Play-In</option>
+              <option value="Playoffs">Playoffs</option>
+              <option value="Postseason">Postseason (Play-In + Playoffs)</option>
+            </select>
+          </label>
+
+          <label class="control control-wide">
+            <span>Game time</span>
+            <select
+              id="garbage-time-mode"
+              name="garbage_time_mode"
+              aria-label="Garbage-time treatment"
+            >
+              <option value="competitive" selected>Exclude garbage time</option>
+              <option value="all_minutes">Include garbage time</option>
+            </select>
+          </label>
+
+          <label id="breakdown-control" class="control control-wide" hidden>
+            <span>Responsibility view</span>
+            <select id="breakdown-mode" name="breakdown_mode">
+              <option value="vc">Value Contributed</option>
+              <option value="wc" selected>Wins Contributed</option>
+            </select>
+          </label>
+
+          <label class="control compact-control">
+            <span>Show</span>
+            <select id="limit" name="limit" aria-label="Number of results">
+              <option value="25" selected>Top 25</option>
+              <option value="50">Top 50</option>
+              <option value="100">Top 100</option>
+              <option value="250">Top 250</option>
+              <option value="all">All players</option>
+            </select>
+          </label>
+
+          <!-- V13 is the statistic now and the table is not searched (owner's
+               note, 2026-09-27); both controls stay in the page, hidden, because
+               the page script reads them. -->
+          <label class="control control-wide" hidden>
+            <span>Ranking</span>
+            <select
+              id="stat-version"
+              name="stat_version"
+              aria-label="Ranking source"
+            >
+              <optgroup label="Official Rankings" id="official-ranking-options">
+                <option value="v11" selected>V11</option>
+              </optgroup>
+
+            </select>
+          </label>
+
+          <label class="control search-control" hidden>
+            <span>Find a player</span>
+            <input
+              id="search"
+              name="search"
+              type="search"
+              placeholder="e.g. Jokić"
+              autocomplete="off"
+            />
+          </label>
+        </section>
+
+        <div id="rankings-table-view" class="rankings-view" data-rankings-view="table">
 
         <div class="mobile-sort-controls" aria-label="Sort player cards">
           <label class="control">
@@ -178,24 +222,18 @@
               <option value="wins_contributed" selected>Wins Contributed</option>
               <option value="losses_contributed">Loss VC</option>
               <option value="value_per_game">VC per game</option>
-              <option value="value_per_game_rank">VC/game rank</option>
-              <option value="postseason_value_per_game_difference">
-                Postseason VC/game difference
-              </option>
-              <option value="postseason_rank_change">Post rank change</option>
               <option value="games_played">Games played</option>
               <option value="wins">Wins</option>
               <option value="losses">Losses</option>
               <option value="offense_value">Offense</option>
               <option value="defense_value">Defense</option>
               <option value="hustle_value">Hustle</option>
-              <option value="other_value">Other</option>
               <option
-                value="side_context_raw_value"
+                value="side_context_raw_pct"
                 class="v8-context-only"
                 hidden
               >
-                Context · Raw VC
+                Context · Raw VC share
               </option>
               <option
                 value="offense_context_value"
@@ -211,88 +249,11 @@
               >
                 Context · Defense Context
               </option>
-              <option
-                value="general_offense_context_value"
-                class="v8-context-only"
-                hidden
-              >
-                Context · General O
-              </option>
-              <option
-                value="teammate_offense_context_value"
-                class="v8-context-only"
-                hidden
-              >
-                Context · Teammate O
-              </option>
-              <option
-                value="opponent_defense_context_value"
-                class="v8-context-only"
-                hidden
-              >
-                Context · Opponent O
-              </option>
-              <option
-                value="general_defense_context_value"
-                class="v8-context-only"
-                hidden
-              >
-                Context · General D
-              </option>
-              <option
-                value="teammate_defense_context_value"
-                class="v8-context-only"
-                hidden
-              >
-                Context · Teammate D
-              </option>
-              <option
-                value="opponent_offense_context_value"
-                class="v8-context-only"
-                hidden
-              >
-                Context · Opponent D
-              </option>
             </select>
           </label>
           <button id="mobile-sort-direction" type="button">
             High to low <span aria-hidden="true">↓</span>
           </button>
-        </div>
-
-        <div class="table-column-controls" aria-label="Ranking table controls">
-          <div class="table-column-toggle-actions">
-            <button
-              id="record-columns-toggle"
-              class="column-group-toggle"
-              type="button"
-              aria-expanded="false"
-            >
-              <span>Record</span>
-              <span class="column-group-toggle-state">Show</span>
-            </button>
-            <button
-              id="context-columns-toggle"
-              class="column-group-toggle v8-context-only"
-              type="button"
-              aria-expanded="false"
-              hidden
-            >
-              <span>Context</span>
-              <span class="column-group-toggle-state">Show</span>
-            </button>
-          </div>
-          <div class="ranking-share-control">
-            <output id="share-status" class="share-status" aria-live="polite"></output>
-            <button
-              id="share-ranking-card"
-              class="share-ranking-card-action"
-              type="button"
-              disabled
-            >
-              Share ranking card
-            </button>
-          </div>
         </div>
 
         <div class="table-wrap rankings-table-wrap" role="region" aria-label="Player rankings table" tabindex="0">
@@ -301,21 +262,13 @@
               <tr>
                 <th scope="col" rowspan="2" class="rank-col">Rank</th>
                 <th scope="col" rowspan="2" class="player-col">Player</th>
-                <th
-                  id="record-group-heading"
-                  scope="colgroup"
-                  colspan="3"
-                  class="breakdown-heading record-column"
-                >
-                  Record
-                </th>
                 <th scope="colgroup" colspan="4" class="breakdown-heading">
                   Value
                 </th>
                 <th
                   id="side-group-heading"
                   scope="colgroup"
-                  colspan="5"
+                  colspan="3"
                   class="breakdown-heading"
                 >
                   Value source
@@ -329,38 +282,16 @@
                 >
                   Context
                 </th>
-                <th scope="colgroup" colspan="3" class="breakdown-heading">
-                  Comparison
+                <th
+                  id="record-group-heading"
+                  scope="colgroup"
+                  colspan="3"
+                  class="breakdown-heading"
+                >
+                  Record
                 </th>
               </tr>
               <tr class="category-headings">
-                <th
-                  scope="col"
-                  class="numeric sortable-heading compact-heading record-column"
-                  aria-sort="none"
-                >
-                  <button type="button" data-sort="games_played">
-                    GP <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="numeric sortable-heading compact-heading record-column"
-                  aria-sort="none"
-                >
-                  <button type="button" data-sort="wins">
-                    Wins <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="numeric sortable-heading compact-heading record-column"
-                  aria-sort="none"
-                >
-                  <button type="button" data-sort="losses">
-                    Losses <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
                 <th
                   scope="col"
                   class="numeric sortable-heading"
@@ -432,23 +363,13 @@
                   </button>
                 </th>
                 <th
-                  id="other-heading"
-                  scope="col"
-                  class="numeric category-other sortable-heading"
-                  aria-sort="none"
-                >
-                  <button type="button" data-sort="other_value">
-                    Other <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
                   scope="col"
                   class="numeric context-heading sortable-heading v8-context-only context-column context-raw-column"
                   aria-sort="none"
-                  title="Value before all six context changes; percentage of selected final VC"
+                  title="What the player would have been paid with all six on-court context factors switched off; sorting uses its share of the selected final total"
                   hidden
                 >
-                  <button type="button" data-sort="side_context_raw_value">
+                  <button type="button" data-sort="side_context_raw_pct">
                     Raw VC <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
@@ -456,10 +377,10 @@
                   scope="col"
                   class="numeric context-heading sortable-heading v8-context-only context-column context-collapsed-column"
                   aria-sort="none"
-                  title="General O + Teammate O + Opponent O"
+                  title="The three offense-side factors together: his own lineups on offense, his teammates on offense, and the defenses he faced; sorting uses its share of the selected final total"
                   hidden
                 >
-                  <button type="button" data-sort="offense_context_value">
+                  <button type="button" data-sort="offense_context_pct">
                     Offense Context <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
@@ -467,118 +388,45 @@
                   scope="col"
                   class="numeric context-heading sortable-heading v8-context-only context-column context-collapsed-column"
                   aria-sort="none"
-                  title="General D + Teammate D + Opponent D"
+                  title="The three defense-side factors together: his own lineups on defense, his teammates on defense, and the offenses he faced; sorting uses its share of the selected final total"
                   hidden
                 >
-                  <button type="button" data-sort="defense_context_value">
+                  <button type="button" data-sort="defense_context_pct">
                     Defense Context <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
                 <th
                   scope="col"
-                  class="numeric context-heading sortable-heading v8-context-only context-column context-expanded-column"
+                  class="numeric sortable-heading compact-heading"
                   aria-sort="none"
-                  title="Additive general-offense performance change"
-                  hidden
                 >
-                  <button type="button" data-sort="general_offense_context_value">
-                    General O <span class="sort-arrow" aria-hidden="true">↕</span>
+                  <button type="button" data-sort="games_played">
+                    GP <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
                 <th
                   scope="col"
-                  class="numeric context-heading sortable-heading v8-context-only context-column context-expanded-column"
+                  class="numeric sortable-heading compact-heading"
                   aria-sort="none"
-                  title="Additive teammate-offense context contribution; percentage of selected final VC"
-                  hidden
                 >
-                  <button type="button" data-sort="teammate_offense_context_value">
-                    Teammate O <span class="sort-arrow" aria-hidden="true">↕</span>
+                  <button type="button" data-sort="wins">
+                    Wins <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
                 <th
                   scope="col"
-                  class="numeric context-heading sortable-heading v8-context-only context-column context-expanded-column"
+                  class="numeric sortable-heading compact-heading"
                   aria-sort="none"
-                  title="Opponent contribution to offensive context, derived from opponent defense"
-                  hidden
                 >
-                  <button type="button" data-sort="opponent_defense_context_value">
-                    Opponent O <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="numeric context-heading sortable-heading v8-context-only context-column context-expanded-column"
-                  aria-sort="none"
-                  title="Additive general-defense performance change"
-                  hidden
-                >
-                  <button type="button" data-sort="general_defense_context_value">
-                    General D <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="numeric context-heading sortable-heading v8-context-only context-column context-expanded-column"
-                  aria-sort="none"
-                  title="Additive teammate-defense context contribution; percentage of selected final VC"
-                  hidden
-                >
-                  <button type="button" data-sort="teammate_defense_context_value">
-                    Teammate D <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="numeric context-heading sortable-heading v8-context-only context-column context-expanded-column"
-                  aria-sort="none"
-                  title="Opponent contribution to defensive context, derived from opponent offense"
-                  hidden
-                >
-                  <button type="button" data-sort="opponent_offense_context_value">
-                    Opponent D <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="numeric sortable-heading comparison-heading"
-                  aria-sort="none"
-                  title="Value Contributed per-game rank within the active season and schedule filters"
-                >
-                  <button type="button" data-sort="value_per_game_rank">
-                    VC/G rank <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="numeric sortable-heading comparison-heading"
-                  aria-sort="none"
-                  title="Combined-postseason Value Contributed per game minus regular-season Value Contributed per game"
-                >
-                  <button
-                    type="button"
-                    data-sort="postseason_value_per_game_difference"
-                  >
-                    Post VC/G Δ
-                    <span class="sort-arrow" aria-hidden="true">↕</span>
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  class="numeric sortable-heading comparison-heading"
-                  aria-sort="none"
-                  title="Regular-season Wins Contributed rank minus combined-postseason rank"
-                >
-                  <button type="button" data-sort="postseason_rank_change">
-                    Post rank Δ <span class="sort-arrow" aria-hidden="true">↕</span>
+                  <button type="button" data-sort="losses">
+                    Losses <span class="sort-arrow" aria-hidden="true">↕</span>
                   </button>
                 </th>
               </tr>
             </thead>
             <tbody id="rankings-body">
               <tr class="loading-row">
-                <td colspan="16">Reading the canonical calculation…</td>
+                <td colspan="12">Reading the canonical calculation…</td>
               </tr>
             </tbody>
           </table>
@@ -598,28 +446,83 @@
               <strong>Wins Contributed</strong> sums that same value only when
               the player’s team won; <strong>Loss VC</strong> is the remainder
               from losses. VC / game is total Value Contributed divided by
-              games played; <strong>VC/G rank</strong> ranks that rate within
-              the active season and schedule filters. Each game’s normalization
-              is distributed across its weighted components before they roll up
-              into <strong>Offense, Defense, Hustle, and Other</strong>, so
-              those four segments add back to Value Contributed. A game with no
-              attributable component routes its normalization-only value to
-              Other.
+              games played. Each game’s normalization is distributed across its
+              weighted components before they roll up into
+              <strong>Offense, Defense and Hustle</strong>.
+              <strong>Rank</strong> is the row’s place in the table as it is
+              sorted right now, so choosing a different column renumbers it.
             </p>
-            <p class="definition comparison-definition">
-              <strong>Post VC/G Δ</strong> is combined-postseason VC per game minus
-              regular-season VC per game. Positive means the player
-              produced more value per appearance in the postseason. The
-              comparison requires at least one game in each schedule and follows
-              the selected season; All Seasons compares career rates.
-              Postseason includes Play-In and playoff games.
-              <strong>Post rank Δ</strong> is regular-season Wins Contributed
-              rank minus combined-postseason Wins Contributed rank. Positive
-              means the player moved up in the postseason; negative means they
-              fell. Both ranks use the same population: players who appeared in
-              that season’s postseason, so a deep run can legitimately produce
-              a large change.
-            </p>
+          </div>
+        </details>
+        </div>
+      </section>
+
+      <section class="chart-panels" aria-label="Player rankings charts" data-mobile-charts>
+        <details id="rankings-value-map-view" class="rankings-visual-view chart-panel" data-rankings-panel="value-map" data-rankings-view="value-map">
+          <summary class="chart-panel-summary">
+            <span class="chart-panel-summary-heading">
+              <span id="rankings-value-map-title" class="chart-panel-title" role="heading" aria-level="3">Offensive and defensive contribution</span>
+              <span class="chart-panel-lede">Each player placed by how much value came from offense against how much came from defense.</span>
+            </span>
+            <span class="chart-panel-summary-action">
+              <span class="chart-panel-summary-label"></span>
+              <span class="chart-panel-chevron" aria-hidden="true">⌄</span>
+            </span>
+          </summary>
+          <div class="chart-panel-body">
+            <div id="rankings-value-map-chart" class="rankings-visual-chart"></div>
+            <div id="rankings-value-map-table" class="rankings-visual-fallback"></div>
+          </div>
+        </details>
+
+        <details id="rankings-load-rate-view" class="rankings-visual-view chart-panel" data-rankings-panel="load-rate" data-rankings-view="load-rate">
+          <summary class="chart-panel-summary">
+            <span class="chart-panel-summary-heading">
+              <span id="rankings-load-rate-title" class="chart-panel-title" role="heading" aria-level="3">Per 36 minutes and the total</span>
+              <span class="chart-panel-lede">Each player's total against the value behind every 36 minutes played: who piled it up, and who did the most with the minutes they had.</span>
+            </span>
+            <span class="chart-panel-summary-action">
+              <span class="chart-panel-summary-label"></span>
+              <span class="chart-panel-chevron" aria-hidden="true">⌄</span>
+            </span>
+          </summary>
+          <div class="chart-panel-body">
+            <div id="rankings-load-rate-chart" class="rankings-visual-chart"></div>
+            <div id="rankings-load-rate-table" class="rankings-visual-fallback"></div>
+          </div>
+        </details>
+
+        <details id="rankings-wins-losses-view" class="rankings-visual-view chart-panel" data-rankings-panel="wins-losses" data-rankings-view="wins-losses">
+          <summary class="chart-panel-summary">
+            <span class="chart-panel-summary-heading">
+              <span id="rankings-wins-losses-title" class="chart-panel-title" role="heading" aria-level="3">Value in wins and in losses</span>
+              <span class="chart-panel-lede">Each player's value in games the team won against value in games it lost.</span>
+            </span>
+            <span class="chart-panel-summary-action">
+              <span class="chart-panel-summary-label"></span>
+              <span class="chart-panel-chevron" aria-hidden="true">⌄</span>
+            </span>
+          </summary>
+          <div class="chart-panel-body">
+            <div id="rankings-wins-losses-chart" class="rankings-visual-chart"></div>
+            <div id="rankings-wins-losses-table" class="rankings-visual-fallback"></div>
+          </div>
+        </details>
+
+        <details id="rankings-reg-post-view" class="rankings-visual-view chart-panel" data-rankings-panel="reg-post" data-rankings-view="reg-post">
+          <summary class="chart-panel-summary">
+            <span class="chart-panel-summary-heading">
+              <span id="rankings-reg-post-title" class="chart-panel-title" role="heading" aria-level="3">Who changed when the schedule changed?</span>
+              <span class="chart-panel-lede">The same player's per-game rate in the regular season and in the postseason.</span>
+            </span>
+            <span class="chart-panel-summary-action">
+              <span class="chart-panel-summary-label"></span>
+              <span class="chart-panel-chevron" aria-hidden="true">⌄</span>
+            </span>
+          </summary>
+          <div class="chart-panel-body">
+            <div id="rankings-reg-post-chart" class="rankings-visual-chart"></div>
+            <div id="rankings-reg-post-table" class="rankings-visual-fallback"></div>
           </div>
         </details>
       </section>
@@ -631,9 +534,8 @@
       >
         <summary class="high-value-records-toggle season-wins-toggle">
           <span class="high-value-records-toggle-heading">
-            <span class="section-label">SEASON LEADERBOARD</span>
             <span id="season-wins-leaders-title" class="high-value-records-title" role="heading" aria-level="2">
-              Top 15 Wins Contributed seasons
+              Top 25 Seasons
             </span>
           </span>
           <span class="high-value-records-toggle-action">
@@ -642,9 +544,6 @@
           </span>
         </summary>
         <div class="high-value-records-content season-wins-content">
-          <div class="results-heading">
-            <p id="season-wins-meta" class="results-meta" aria-live="polite">Loading season leaders…</p>
-          </div>
           <div class="season-wins-toolbar">
             <fieldset class="season-wins-phase-control">
               <legend>Schedule</legend>
@@ -657,6 +556,14 @@
                 <label for="season-wins-full">Full</label>
               </div>
             </fieldset>
+            <label class="control season-wins-limit-control">
+              <span>Show</span>
+              <select id="season-wins-limit" aria-label="Number of seasons">
+                <option value="25" selected>Top 25</option>
+                <option value="35">Top 35</option>
+                <option value="60">Top 60</option>
+              </select>
+            </label>
           </div>
           <div id="season-wins-error" class="error-message" role="alert" hidden></div>
           <div class="table-wrap season-wins-table-wrap">
@@ -683,14 +590,13 @@
       >
         <summary class="high-value-records-toggle top-games-toggle">
           <span class="high-value-records-toggle-heading">
-            <span class="section-label">SINGLE-GAME LEADERBOARD</span>
             <span
               id="top-games-title"
               class="high-value-records-title"
               role="heading"
               aria-level="2"
             >
-              Highest all-time games
+              Top 25 Games
             </span>
           </span>
           <span class="high-value-records-toggle-action">
@@ -700,29 +606,27 @@
         </summary>
 
         <div class="high-value-records-content top-games-content">
-        <div class="results-heading top-games-heading">
-          <p id="top-games-meta" class="results-meta" aria-live="polite">
-            Loading single-game leaders…
-          </p>
-        </div>
-
         <div class="top-games-toolbar" aria-label="Highest-game filters">
-          <label class="control">
-            <span>Season</span>
-            <select id="top-games-season" aria-label="Highest-game season">
-              <option value="All Seasons">All seasons</option>
-            </select>
-          </label>
-
-          <label class="control">
-            <span>Schedule</span>
-            <select id="top-games-phase" aria-label="Highest-game schedule">
-              <option value="All">All games</option>
-              <option value="Regular Season">Regular season</option>
-              <option value="Playoffs">Playoffs</option>
-              <option value="Postseason">Postseason</option>
-            </select>
-          </label>
+          <fieldset class="top-games-schedule-control">
+            <legend>Schedule</legend>
+            <div class="segmented top-games-schedule-segmented">
+              <input
+                id="top-games-phase-regular"
+                type="radio"
+                name="top-games-phase"
+                value="Regular Season"
+                checked
+              />
+              <label for="top-games-phase-regular">Regular<span class="top-games-season-word"> season</span></label>
+              <input
+                id="top-games-phase-postseason"
+                type="radio"
+                name="top-games-phase"
+                value="Postseason"
+              />
+              <label for="top-games-phase-postseason">Postseason</label>
+            </div>
+          </fieldset>
 
           <fieldset class="top-games-outcome-control">
             <legend>Outcome</legend>
@@ -751,15 +655,6 @@
               <label for="top-games-outcome-losses">Losses</label>
             </div>
           </fieldset>
-
-          <label class="control top-games-limit-control">
-            <span>Show</span>
-            <select id="top-games-limit" aria-label="Number of highest games">
-              <option value="25" selected>Top 25</option>
-              <option value="50">Top 50</option>
-              <option value="100">Top 100</option>
-            </select>
-          </label>
         </div>
 
         <div id="top-games-error" class="error-message" role="alert" hidden></div>
@@ -777,22 +672,23 @@
                 <th scope="col">Stage</th>
                 <th scope="col">Result</th>
                 <th scope="col" class="numeric">VC</th>
+                <th scope="col">Build</th>
               </tr>
             </thead>
             <tbody id="top-games-body">
               <tr class="loading-row">
-                <td colspan="9">Reading the highest single-game values…</td>
+                <td colspan="10">Reading the highest single-game values…</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <p class="definition top-games-definition">
-          Ranked by a player’s <strong>Value Contributed in one game</strong>.
-          Select a season or keep the full all-time history, then change the
-          schedule to isolate regular-season or playoff games. Playoffs excludes
-          the Play-In; Postseason combines Play-In and playoff games. The
-          win/loss filter reranks only the selected outcome.
+          The twenty-five highest single games in the whole calculated history,
+          ranked by a player’s <strong>Value Contributed in one game</strong>.
+          The schedule switch reads either regular-season games or postseason
+          games, which are the Play-In and the playoffs together. The win/loss
+          filter reranks only the selected outcome.
         </p>
         </div>
       </details>
@@ -804,14 +700,13 @@
       >
         <summary class="high-value-records-toggle">
           <span class="high-value-records-toggle-heading">
-            <span class="section-label">HIGH-VALUE GAME RECORDS</span>
             <span
               id="high-value-records-title"
               class="high-value-records-title"
               role="heading"
               aria-level="2"
             >
-              The .400+ Game Club
+              The <span class="high-value-threshold">.500</span>+ Game Club
             </span>
           </span>
           <span class="high-value-records-toggle-action">
@@ -821,40 +716,36 @@
         </summary>
 
         <div class="high-value-records-content">
-        <div class="results-heading high-value-records-heading">
-          <div class="high-value-records-summary">
-            <div class="qualifier-count" aria-live="polite">
-              <strong id="high-value-player-count">—</strong>
-              <span>players with a .400+ game</span>
-            </div>
-            <p
-              id="high-value-records-meta"
-              class="results-meta"
-              aria-live="polite"
-            >
-              Loading qualifying-player records…
-            </p>
-          </div>
-        </div>
-
+        <!-- The count sits on the toolbar's own row, beside the schedule it
+             counts, and drops below it on a phone. -->
         <div
           class="high-value-records-toolbar"
-          aria-label=".400-plus game schedule filter"
+          aria-label=".500-plus game schedule filter"
         >
-          <label class="control">
-            <span>Schedule</span>
-            <select
-              id="high-value-phase"
-              aria-label=".400-plus game schedule"
-            >
-              <option value="All">All games</option>
-              <option value="Regular Season">Regular season</option>
-              <option value="Playoffs">Playoffs (no Play-In)</option>
-              <option value="Postseason">
-                Postseason (Play-In + Playoffs)
-              </option>
-            </select>
-          </label>
+          <fieldset class="high-value-schedule-control">
+            <legend>Schedule</legend>
+            <div class="segmented high-value-schedule-segmented">
+              <input
+                id="high-value-phase-regular"
+                type="radio"
+                name="high-value-phase"
+                value="Regular Season"
+                checked
+              />
+              <label for="high-value-phase-regular">Regular season</label>
+              <input
+                id="high-value-phase-postseason"
+                type="radio"
+                name="high-value-phase"
+                value="Postseason"
+              />
+              <label for="high-value-phase-postseason">Postseason</label>
+            </div>
+          </fieldset>
+          <div class="qualifier-count" aria-live="polite">
+            <strong id="high-value-player-count">—</strong>
+            <span>players with a <span class="high-value-threshold">.500</span>+ game</span>
+          </div>
         </div>
 
         <div
@@ -866,13 +757,13 @@
 
         <div
           class="mobile-sort-controls high-value-mobile-sort-controls"
-          aria-label="Sort .400-plus player records"
+          aria-label="Sort .500-plus player records"
         >
           <label class="control">
             <span>Sort records by</span>
             <select
               id="high-value-mobile-sort"
-              aria-label="Sort .400-plus player records by"
+              aria-label="Sort .500-plus player records by"
             >
               <option value="games_played">Qualifying games</option>
               <option value="wins">Wins</option>
@@ -950,7 +841,7 @@
             </thead>
             <tbody id="high-value-records-body">
               <tr class="loading-row">
-                <td colspan="7">Reading .400-plus game records…</td>
+                <td colspan="7">Reading .500-plus game records…</td>
               </tr>
             </tbody>
           </table>
@@ -958,27 +849,31 @@
 
         <p class="definition high-value-records-definition">
           Includes every player with at least one game worth
-          <strong>0.400 Value Contributed or more</strong>. Games, wins, Value
+          <strong>0<span class="high-value-threshold">.500</span> Value Contributed
+          or more</strong>. Games, wins, Value
           Contributed, Wins Contributed, and winning percentage are calculated
           only from those qualifying games inside the selected schedule.
-          <strong>Playoffs</strong> excludes Play-In games;
           <strong>Postseason</strong> combines Play-In and playoff games. Select
           any column heading to sort.
         </p>
         </div>
       </details>
 
-      <section class="trends" aria-labelledby="trends-title">
-        <div class="results-heading trends-heading">
-          <div>
-            <p class="section-label">ROLLING FORM</p>
-            <h2 id="trends-title">Rolling Wins Contributed history</h2>
-          </div>
-          <p id="trends-meta" class="results-meta" aria-live="polite">
-            Loading rolling history…
-          </p>
-        </div>
+      <h2 id="total-history-title" class="page-section-title">Historical Perspective</h2>
 
+      <section class="total-history" aria-labelledby="total-history-title">
+      <details class="trends chart-panel" aria-labelledby="trends-title">
+        <summary class="chart-panel-summary">
+          <span class="chart-panel-summary-heading">
+            <span id="trends-title" class="chart-panel-title" role="heading" aria-level="3">Rolling Wins Contributed</span>
+            <span class="chart-panel-lede">How the best careers rose and fell, averaged over one, three or five years.</span>
+          </span>
+          <span class="chart-panel-summary-action">
+            <span class="chart-panel-summary-label"></span>
+            <span class="chart-panel-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
+        <div class="chart-panel-body">
         <div class="trend-toolbar">
           <fieldset class="trend-phase-control">
             <legend>Graph schedule</legend>
@@ -1037,6 +932,7 @@
         </div>
 
         <div id="trends-error" class="error-message" role="alert" hidden></div>
+        <div id="mobile-trend-preview" aria-label="Touch explorer preview">Loading career trends…</div>
         <div class="trend-layout">
           <div>
             <button
@@ -1078,20 +974,37 @@
             <div id="trend-legend-list" class="trend-legend-list"></div>
           </aside>
         </div>
-
-      </section>
-
-      <section class="trends lift-trends" aria-labelledby="lift-title">
-        <div class="results-heading trends-heading">
-          <div>
-            <p class="section-label">POSTSEASON MOVEMENT</p>
-            <h2 id="lift-title">Postseason rank-change history</h2>
-          </div>
-          <p id="lift-meta" class="results-meta" aria-live="polite">
-            Loading postseason rank changes…
-          </p>
         </div>
+      </details>
 
+      <details id="rankings-type-trends-view" class="rankings-visual-view chart-panel type-trends-panel" data-rankings-panel="type-trends" data-rankings-view="type-trends" hidden>
+        <summary class="chart-panel-summary">
+          <span class="chart-panel-summary-heading">
+            <span id="rankings-type-trends-title" class="chart-panel-title" role="heading" aria-level="3">Wins Contributed by player type</span>
+            <span class="chart-panel-lede">How much each player type contributed, season by season, averaged over one, three or five years.</span>
+          </span>
+          <span class="chart-panel-summary-action">
+            <span class="chart-panel-summary-label"></span>
+            <span class="chart-panel-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
+        <div class="chart-panel-body">
+          <div id="rankings-type-trends-chart" class="type-trends-chart"></div>
+        </div>
+      </details>
+
+      <details class="trends lift-trends chart-panel" aria-labelledby="lift-title">
+        <summary class="chart-panel-summary">
+          <span class="chart-panel-summary-heading">
+            <span id="lift-title" class="chart-panel-title" role="heading" aria-level="3">Postseason Rank Change</span>
+            <span class="chart-panel-lede">Who climbed and who fell once the postseason started, season by season.</span>
+          </span>
+          <span class="chart-panel-summary-action">
+            <span class="chart-panel-summary-label"></span>
+            <span class="chart-panel-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
+        <div class="chart-panel-body">
         <div class="trend-toolbar lift-toolbar">
           <fieldset class="trend-phase-control trend-window-control">
             <legend>Average window</legend>
@@ -1121,7 +1034,7 @@
             </div>
           </fieldset>
           <fieldset class="trend-phase-control lift-group-control">
-            <legend>Qualifying group</legend>
+            <legend>Sort</legend>
             <div class="segmented lift-group-segmented">
               <input
                 id="lift-group-top"
@@ -1130,26 +1043,20 @@
                 value="top"
                 checked
               />
-              <label for="lift-group-top">Top 10</label>
+              <label for="lift-group-top">Top</label>
               <input
                 id="lift-group-bottom"
                 type="radio"
                 name="lift-group"
                 value="bottom"
               />
-              <label for="lift-group-bottom">Bottom 10</label>
-              <input
-                id="lift-group-both"
-                type="radio"
-                name="lift-group"
-                value="both"
-              />
-              <label for="lift-group-both">Both</label>
+              <label for="lift-group-bottom">Bottom</label>
             </div>
           </fieldset>
         </div>
 
         <div id="lift-error" class="error-message" role="alert" hidden></div>
+        <div id="mobile-lift-preview" aria-label="Postseason rank-change chart"></div>
         <div class="trend-layout">
           <div>
             <button
@@ -1191,190 +1098,33 @@
             <div id="lift-legend-list" class="trend-legend-list"></div>
           </aside>
         </div>
-
+        </div>
+      </details>
       </section>
 
-      <dialog
-        id="experiment-builder-dialog"
-        class="experiment-dialog"
-        aria-labelledby="experiment-builder-title"
-        aria-modal="true"
-      >
-        <div class="experiment-dialog-shell">
-          <header class="experiment-dialog-header">
-            <div>
-              <p class="section-label">BROWSER-LOCAL EXPERIMENT LAB</p>
-              <h2 id="experiment-builder-title">Create an experiment</h2>
-              <p>
-                Packages, settings, progress, and results stay in IndexedDB on this
-                device. The lab never uploads an experiment or uses analytics.
-              </p>
-            </div>
-            <button id="close-experiment-builder" class="dialog-close" type="button">Close</button>
-          </header>
-
-          <div id="experiment-runtime-error" class="error-message" role="alert" hidden></div>
-          <p id="experiment-runtime-status" class="experiment-runtime-status" role="status" aria-live="polite">
-            Preparing the browser-local calculation engine…
-          </p>
-
-          <form id="original-experiment-form" novalidate>
-            <section class="experiment-editor-section" aria-labelledby="experiment-basics-title">
-              <div class="experiment-section-heading">
-                <p class="section-label">BASIC</p>
-                <h3 id="experiment-basics-title">Name and seasons</h3>
-              </div>
-              <div class="experiment-identity-grid">
-                <label class="experiment-field experiment-name-field">
-                  <span>Experiment name</span>
-                  <input id="experiment-name" name="name" type="text" maxlength="80" value="My Original experiment" required />
-                </label>
-                <fieldset class="season-picker">
-                  <legend>Seasons to calculate</legend>
-                  <label class="all-seasons-control">
-                    <input id="experiment-all-seasons" type="checkbox" />
-                    <span>All Seasons (2014–2026)</span>
-                  </label>
-                  <select id="experiment-seasons" name="selected_seasons" multiple size="7" aria-describedby="all-seasons-warning">
-                    <option value="2014">2013–14</option>
-                    <option value="2015">2014–15</option>
-                    <option value="2016">2015–16</option>
-                    <option value="2017">2016–17</option>
-                    <option value="2018">2017–18</option>
-                    <option value="2019">2018–19</option>
-                    <option value="2020">2019–20</option>
-                    <option value="2021">2020–21</option>
-                    <option value="2022">2021–22</option>
-                    <option value="2023">2022–23</option>
-                    <option value="2024">2023–24</option>
-                    <option value="2025">2024–25</option>
-                    <option value="2026" selected>2025–26</option>
-                  </select>
-                  <small>Command-click or Control-click to choose more than one season.</small>
-                </fieldset>
-              </div>
-              <aside id="all-seasons-warning" class="all-seasons-warning" hidden>
-                <strong>All Seasons downloads the complete 16,795-game calculation corpus.</strong>
-                <span>
-                  Estimated download <output id="all-seasons-download-estimate">calculating…</output>,
-                  device storage <output id="all-seasons-storage-estimate">calculating…</output>,
-                  runtime <output id="all-seasons-runtime-estimate">calculating…</output>.
-                  Available storage is checked before packages download and confirmation is required.
-                </span>
-                <label><input id="confirm-all-seasons" type="checkbox" /> I understand this full-history download and storage use.</label>
-              </aside>
-            </section>
-
-            <section class="experiment-editor-section" aria-labelledby="raw-multipliers-title">
-              <div class="experiment-section-heading">
-                <p class="section-label">RAW VALUE</p>
-                <h3 id="raw-multipliers-title">Broad play-credit sliders</h3>
-                <p>Adjust whole value sources from removed (0×) to doubled (2×), with the Original policy centered at 1×. When one category is amplified, policy remainder decreases first and then other unedited roles in the same play rebalance proportionally so the complete allocation stays at one possession. Explicit Advanced edits are never changed automatically.</p>
-              </div>
-              <div id="raw-multiplier-controls" class="experiment-control-grid raw-control-grid">
-                <label class="experiment-slider-card"><span>Positive scoring</span><output data-raw-output-for="scoring">1.00×</output><input id="raw-scoring" data-raw-group="scoring" type="range" min="0" max="2" step="0.05" value="1" /><small>Scorer value on made field goals and free throws.</small></label>
-                <label class="experiment-slider-card"><span>Playmaking</span><output data-raw-output-for="playmaking">1.00×</output><input id="raw-playmaking" data-raw-group="playmaking" type="range" min="0" max="2" step="0.05" value="1" /><small>Assist value.</small></label>
-                <label class="experiment-slider-card"><span>Offensive rebounding</span><output data-raw-output-for="offensive_rebounding">1.00×</output><input id="raw-offensive-rebounding" data-raw-group="offensive_rebounding" type="range" min="0" max="2" step="0.05" value="1" /><small>Offensive-rebound pools and retained-possession value.</small></label>
-                <label class="experiment-slider-card"><span>Missed shots</span><output data-raw-output-for="missed_shots">1.00×</output><input id="raw-missed-shots" data-raw-group="missed_shots" type="range" min="0" max="2" step="0.05" value="1" /><small>Missed two-pointer and missed three-pointer penalties.</small></label>
-                <label class="experiment-slider-card"><span>Turnovers</span><output data-raw-output-for="turnovers">1.00×</output><input id="raw-turnovers" data-raw-group="turnovers" type="range" min="0" max="2" step="0.05" value="1" /><small>Identified-player and team-coded turnover accountability.</small></label>
-                <label class="experiment-slider-card"><span>Offensive shortfalls</span><output data-raw-output-for="offensive_shortfalls">1.00×</output><input id="raw-offensive-shortfalls" data-raw-group="offensive_shortfalls" type="range" min="0" max="2" step="0.05" value="1" /><small>Penalty when a free-throw or retained-foul sequence produces less value than expected.</small></label>
-                <label class="experiment-slider-card"><span>Defensive rebounding</span><output data-raw-output-for="defensive_rebounding">1.00×</output><input id="raw-defensive-rebounding" data-raw-group="defensive_rebounding" type="range" min="0" max="2" step="0.05" value="1" /><small>Contested and uncontested defensive-rebound value.</small></label>
-                <label class="experiment-slider-card"><span>Helpers / hustle</span><output data-raw-output-for="helpers_hustle">1.00×</output><input id="raw-helpers-hustle" data-raw-group="helpers_hustle" type="range" min="0" max="2" step="0.05" value="1" /><small>Screens, boxouts, and helper allocations.</small></label>
-                <label class="experiment-slider-card"><span>Defense</span><output data-raw-output-for="defense">1.00×</output><input id="raw-defense" data-raw-group="defense" type="range" min="0" max="2" step="0.05" value="1" /><small>Blocks, steals, defended shots, and pressure defense.</small></label>
-                <label class="experiment-slider-card"><span>Fouls &amp; administration</span><output data-raw-output-for="fouls_administration">1.00×</output><input id="raw-fouls-administration" data-raw-group="fouls_administration" type="range" min="0" max="2" step="0.05" value="1" /><small>Foul-draw credit plus foul, technical, lane, three-seconds, and administrative values.</small></label>
-              </div>
-            </section>
-
-            <section class="experiment-editor-section" aria-labelledby="context-magnifiers-title">
-              <div class="experiment-section-heading">
-                <p class="section-label">FULL-LINEUP CONTEXT</p>
-                <h3 id="context-magnifiers-title">Six context magnifiers</h3>
-                <p>A context magnifier of 1 preserves the measured effect, 0 removes it, and values above 1 amplify it.</p>
-              </div>
-              <div id="context-magnifier-controls" class="experiment-control-grid context-control-grid">
-                <label class="experiment-number-card offense-control"><span>General Offense</span><input data-context-key="general_offense" type="number" min="0" max="5" step="0.05" value="1" /><small>Actual offense relative to neutral expectation.</small></label>
-                <label class="experiment-number-card offense-control"><span>Teammate Offense</span><input data-context-key="teammate_offense" type="number" min="0" max="5" step="0.05" value="1" /><small>Offensive teammate-lineup quality.</small></label>
-                <label class="experiment-number-card offense-control"><span>Opponent offense</span><input data-context-key="opponent_defense" type="number" min="0" max="5" step="0.05" value="1" /><small>Opponent defense is applied to the player’s offensive context.</small></label>
-                <label class="experiment-number-card defense-control"><span>General Defense</span><input data-context-key="general_defense" type="number" min="0" max="5" step="0.05" value="1" /><small>Actual defense relative to neutral expectation.</small></label>
-                <label class="experiment-number-card defense-control"><span>Teammate Defense</span><input data-context-key="teammate_defense" type="number" min="0" max="5" step="0.05" value="1" /><small>Defensive teammate-lineup quality.</small></label>
-                <label class="experiment-number-card defense-control"><span>Opponent defense</span><input data-context-key="opponent_offense" type="number" min="0" max="5" step="0.05" value="1" /><small>Opponent offense is applied to the player’s defensive context.</small></label>
-              </div>
-            </section>
-
-            <section class="experiment-editor-section" aria-labelledby="on-off-controls-title">
-              <div class="experiment-section-heading">
-                <p class="section-label">ON / OFF</p>
-                <h3 id="on-off-controls-title">Reliability and importance</h3>
-              </div>
-              <div class="side-control-grid">
-                <fieldset class="side-control-card">
-                  <legend>Small-sample shrinkage · K</legend>
-                  <p>K is the shrinkage applied to small off-court samples. K=0 applies the comparison fully; higher values pull small samples toward neutral.</p>
-                  <label class="link-sides-control"><input id="link-reliability-k" type="checkbox" checked /> Keep offense and defense linked</label>
-                  <div class="side-number-pair">
-                    <label><span>Offense K</span><input id="reliability-k-offense" type="number" min="0" max="500" step="1" value="0" /></label>
-                    <label><span>Defense K</span><input id="reliability-k-defense" type="number" min="0" max="500" step="1" value="0" disabled /></label>
-                  </div>
-                </fieldset>
-                <fieldset class="side-control-card">
-                  <legend>On/off importance · λ</legend>
-                  <p>Lambda (λ) controls the importance of the player’s on/off performance. λ=0 ignores the off-court comparison; λ=1 uses it fully.</p>
-                  <label class="link-sides-control"><input id="link-lambda" type="checkbox" checked /> Keep offense and defense linked</label>
-                  <div class="side-number-pair">
-                    <label><span>Offense λ</span><input id="lambda-offense" type="number" min="0" max="2" step="0.05" value="1" /></label>
-                    <label><span>Defense λ</span><input id="lambda-defense" type="number" min="0" max="2" step="0.05" value="1" disabled /></label>
-                  </div>
-                </fieldset>
-              </div>
-            </section>
-
-            <details id="advanced-controls" class="advanced-controls">
-              <summary>
-                <span><span class="section-label">ADVANCED</span><strong>68 play-level coefficients</strong></span>
-                <span>Edit complete outcomes and allocation templates</span>
-              </summary>
-              <div class="advanced-introduction">
-                <div>
-                  <p>Open a value source, then open a play type to see its roles. Everything starts collapsed so you can scan the full policy before choosing what to inspect.</p>
-                  <details class="advanced-value-key">
-                    <summary>What do Original, after slider, and edited mean?</summary>
-                    <p><strong>Original</strong> is the public policy value. <strong>After slider</strong> is the final value produced by the broad category, including any proportional rebalancing needed to keep the play at one possession. An <strong>Auto-balanced</strong> badge marks a connected role that was reduced. <strong>Edited</strong> replaces only this one role and is never changed automatically. Gray read-only values are recalculated from the final inputs.</p>
-                  </details>
-                </div>
-                <button id="reset-all-advanced" class="quiet-action" type="button">Reset all Advanced edits</button>
-              </div>
-              <div id="advanced-outcome-groups" class="advanced-outcome-groups" aria-live="polite">
-                <p class="advanced-loading">Reading the signed coefficient catalog…</p>
-              </div>
-            </details>
-
-            <section class="experiment-review" aria-labelledby="experiment-review-title">
-              <div>
-                <p class="section-label">REVIEW</p>
-                <h3 id="experiment-review-title">Run on this device</h3>
-                <p id="experiment-validation-summary">Run locally validates the settings, checks package sizes and available storage, and then starts. If the device cannot safely hold the selected seasons, the run stops with an error.</p>
-                <ul id="experiment-validation-errors" class="validation-errors" aria-live="polite"></ul>
-              </div>
-              <div class="experiment-run-actions">
-                <button id="reset-experiment" class="quiet-action" type="button">Reset to Original</button>
-                <button id="run-experiment" class="primary-action" type="submit" disabled>Run locally</button>
-                <button id="cancel-experiment" class="danger-action" type="button" hidden>Cancel run</button>
-              </div>
-            </section>
-          </form>
-
-          <section id="local-experiment-manager" class="local-experiment-manager" aria-labelledby="local-experiment-manager-title">
-            <div class="experiment-section-heading">
-              <p class="section-label">MY EXPERIMENTS</p>
-              <h3 id="local-experiment-manager-title">Saved on this device</h3>
-              <p>Rename, clone, rerun, or delete a local experiment. Clearing browser storage removes it; there is no account synchronization.</p>
-            </div>
-            <div id="local-experiment-list" class="local-experiment-list" aria-live="polite">
-              <p>No local experiments yet.</p>
-            </div>
-          </section>
+      <!-- Every season, side by side: a total-history chart, drawn by the
+           rankings chart workspace, between Postseason Rank Change and Top 25
+           Seasons (those later sections are ordered by CSS). -->
+      <section class="chart-panels season-history-panels" aria-label="Every season, side by side">
+      <details id="rankings-history-view" class="rankings-visual-view chart-panel" data-rankings-panel="season-history" data-rankings-view="season-history">
+        <summary class="chart-panel-summary">
+          <span class="chart-panel-summary-heading">
+            <span id="rankings-history-title" class="chart-panel-title" role="heading" aria-level="3">Every season, side by side</span>
+            <span class="chart-panel-lede">Each season's best players on one scale, so this season's leaders can be measured against every other season's.</span>
+          </span>
+          <span class="chart-panel-summary-action">
+            <span class="chart-panel-summary-label"></span>
+            <span class="chart-panel-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
+        <div class="chart-panel-body">
+          <div id="rankings-history-chart" class="rankings-visual-chart rankings-history-chart"></div>
+          <div id="rankings-history-table" class="rankings-visual-fallback"></div>
         </div>
-      </dialog>
+      </details>
+      </section>
+
+
 
       <dialog
         id="ranking-card-dialog"
@@ -1385,7 +1135,6 @@
         <div class="ranking-card-shell">
           <header class="experiment-dialog-header">
             <div>
-              <p class="section-label">SOCIAL RANKING CARD</p>
               <h2 id="ranking-card-dialog-title">Share your top 10</h2>
               <p id="ranking-card-dialog-meta"></p>
             </div>
@@ -1408,7 +1157,6 @@
         <div class="context-dialog-shell">
           <header class="context-dialog-header">
             <div>
-              <p class="section-label">PLAYER CONTEXT COMPOSITION</p>
               <h2 id="context-dialog-title">Player context</h2>
               <p id="context-dialog-meta" class="results-meta"></p>
             </div>

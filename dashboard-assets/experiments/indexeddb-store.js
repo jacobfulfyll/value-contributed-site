@@ -2,7 +2,7 @@ import { canonicalJson } from "./hash.js";
 import { BrowserExperimentError, TIME_MODES, assertTimeModes, sortedUniqueSeasons } from "./protocol.js";
 
 export const EXPERIMENT_DATABASE_NAME = "value-contributed-original-experiments";
-export const EXPERIMENT_DATABASE_VERSION = 4;
+export const EXPERIMENT_DATABASE_VERSION = 5;
 export const EXPERIMENT_STORE_NAMES = Object.freeze({
   PACKAGES: "packages",
   CONFIGURATIONS: "configurations",
@@ -37,6 +37,8 @@ const INDEX_DEFINITIONS = Object.freeze({
     ["by_experiment", "experimentId", { unique: false }],
     ["by_experiment_season", ["experimentId", "seasonEndYear"], { unique: false }],
     ["by_experiment_season_mode", ["experimentId", "seasonEndYear", "timeMode"], { unique: false }],
+    ["by_experiment_season_mode_player", ["experimentId", "seasonEndYear", "timeMode", "canonical_player_id"], { unique: false }],
+    ["by_experiment_season_mode_team", ["experimentId", "seasonEndYear", "timeMode", "team_id"], { unique: false }],
   ],
   [EXPERIMENT_STORE_NAMES.AGGREGATES]: [
     ["by_experiment", "experimentId", { unique: false }],
@@ -175,10 +177,12 @@ function resultKey(experimentId, seasonEndYear, row) {
   return `${experimentId}:${seasonEndYear}:${identity}`;
 }
 
-function completeResultScope(rows, { seasons, timeMode }) {
+function completeResultScope(rows, { seasons, timeMode, playerId = null, teamId = null }) {
   const scoped = rows.filter((row) =>
     (seasons === null || seasons.has(row.seasonEndYear))
-    && (timeMode === null || row.timeMode === timeMode));
+    && (timeMode === null || row.timeMode === timeMode)
+    && (playerId === null || Number(row.canonical_player_id) === playerId)
+    && (teamId === null || Number(row.team_id) === teamId));
   if (scoped.some((row) => row.partial !== false)) {
     throw new BrowserExperimentError(
       "incomplete_result_scope",
@@ -479,6 +483,34 @@ export class OriginalExperimentStore {
     return rows.length;
   }
 
+  async putPublishedAggregates(experimentId, seasonEndYear, rows) {
+    if (!Array.isArray(rows)) throw new TypeError("Published aggregates must be an array.");
+    const configuration = await this.getConfiguration(experimentId);
+    if (!configuration?.published || configuration.stale || configuration.requiresRerun) {
+      throw new BrowserExperimentError(
+        "experiment_not_published",
+        "Only a current, complete experiment may cache entity aggregates.",
+      );
+    }
+    const transaction = await this.openTransaction(EXPERIMENT_STORE_NAMES.AGGREGATES, "readwrite");
+    const store = transaction.objectStore(EXPERIMENT_STORE_NAMES.AGGREGATES);
+    for (const row of rows) {
+      if (typeof row.panel !== "string" || row.panel.length === 0) {
+        transaction.abort();
+        throw new BrowserExperimentError("invalid_aggregate", "An aggregate row is missing its panel.");
+      }
+      store.put({
+        ...row,
+        key: aggregateKey(experimentId, seasonEndYear, row),
+        experimentId,
+        seasonEndYear,
+        partial: false,
+      });
+    }
+    await transactionComplete(transaction);
+    return rows.length;
+  }
+
   async checkpointSeason(experimentId, seasonEndYear, seasonReceipt) {
     assertTimeModes(seasonReceipt.timeModes, "season receipt time modes");
     const transaction = await this.openTransaction(
@@ -756,6 +788,8 @@ export class OriginalExperimentStore {
   async queryPlayerGameResults(experimentId, {
     seasonEndYears = null,
     timeMode = null,
+    playerId = null,
+    teamId = null,
   } = {}) {
     const configuration = await this.getConfiguration(experimentId);
     if (!configuration?.published) {
@@ -763,6 +797,9 @@ export class OriginalExperimentStore {
     }
     if (timeMode !== null && !TIME_MODES.includes(timeMode)) {
       throw new BrowserExperimentError("invalid_result_time_mode", `Unsupported result time mode ${timeMode}.`);
+    }
+    if (playerId !== null && teamId !== null) {
+      throw new BrowserExperimentError("invalid_result_entity", "A result query may select a player or a team, not both.");
     }
     const seasons = seasonEndYears === null
       ? null
@@ -772,7 +809,15 @@ export class OriginalExperimentStore {
     let source;
     if (seasons?.size === 1) {
       const [seasonEndYear] = seasons;
-      source = timeMode === null
+      if (timeMode !== null && playerId !== null) {
+        source = store.index("by_experiment_season_mode_player").getAll(
+          this.keyRange.only([experimentId, seasonEndYear, timeMode, playerId]),
+        );
+      } else if (timeMode !== null && teamId !== null) {
+        source = store.index("by_experiment_season_mode_team").getAll(
+          this.keyRange.only([experimentId, seasonEndYear, timeMode, teamId]),
+        );
+      } else source = timeMode === null
         ? store.index("by_experiment_season").getAll(this.keyRange.only([experimentId, seasonEndYear]))
         : store.index("by_experiment_season_mode").getAll(
           this.keyRange.only([experimentId, seasonEndYear, timeMode]),
@@ -783,7 +828,7 @@ export class OriginalExperimentStore {
     const rows = await requestResult(source);
     await transactionComplete(transaction);
     return {
-      rows: completeResultScope(rows, { seasons, timeMode }),
+      rows: completeResultScope(rows, { seasons, timeMode, playerId, teamId }),
       configuration,
     };
   }
@@ -880,6 +925,19 @@ export class MemoryExperimentStore {
       if (!row.panel) throw new BrowserExperimentError("invalid_aggregate", "Aggregate panel is required.");
       const key = aggregateKey(id, season, row);
       this.aggregates.set(key, { ...structuredClone(row), key, experimentId: id, seasonEndYear: season, partial: true });
+    });
+    return rows.length;
+  }
+
+  async putPublishedAggregates(id, season, rows) {
+    const config = this.configurations.get(id);
+    if (!config?.published || config.stale || config.requiresRerun) {
+      throw new BrowserExperimentError("experiment_not_published", "Only current complete experiments may cache entity aggregates.");
+    }
+    rows.forEach((row) => {
+      if (!row.panel) throw new BrowserExperimentError("invalid_aggregate", "Aggregate panel is required.");
+      const key = aggregateKey(id, season, row);
+      this.aggregates.set(key, { ...structuredClone(row), key, experimentId: id, seasonEndYear: season, partial: false });
     });
     return rows.length;
   }
@@ -1012,16 +1070,21 @@ export class MemoryExperimentStore {
     return { rows: structuredClone(rows.slice(offset, offset + limit)), total: rows.length, configuration: structuredClone(config) };
   }
 
-  async queryPlayerGameResults(id, { seasonEndYears = null, timeMode = null } = {}) {
+  async queryPlayerGameResults(id, {
+    seasonEndYears = null, timeMode = null, playerId = null, teamId = null,
+  } = {}) {
     const config = this.configurations.get(id);
     if (!config?.published) throw new BrowserExperimentError("experiment_not_published", "Not published.");
     if (timeMode !== null && !TIME_MODES.includes(timeMode)) {
       throw new BrowserExperimentError("invalid_result_time_mode", `Unsupported result time mode ${timeMode}.`);
     }
+    if (playerId !== null && teamId !== null) {
+      throw new BrowserExperimentError("invalid_result_entity", "A result query may select a player or a team, not both.");
+    }
     const seasons = seasonEndYears === null ? null : new Set(sortedUniqueSeasons(seasonEndYears));
     const rows = [...this.results.values()].filter((row) => row.experimentId === id);
     return {
-      rows: structuredClone(completeResultScope(rows, { seasons, timeMode })),
+      rows: structuredClone(completeResultScope(rows, { seasons, timeMode, playerId, teamId })),
       configuration: structuredClone(config),
     };
   }

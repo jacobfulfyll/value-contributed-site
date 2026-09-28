@@ -76,6 +76,9 @@ const RANKING_SORTS = Object.freeze([
   "defense_value",
   "other_value",
   "side_context_raw_value",
+  // The table's Raw VC column sorts by its share of the selected total
+  // (the owner's note of 2026-09-22); the row already carries the share.
+  "side_context_raw_pct",
   "offense_context_value",
   "defense_context_value",
   "general_offense_context_value",
@@ -408,7 +411,7 @@ function normalizeRow(source, index) {
     { positive: true },
   );
   const rawVc = finite(source.raw_vc, `${path}.raw_vc`);
-  sideComponentRecord(source.raw_components, `${path}.raw_components`);
+  const rawComponents = sideComponentRecord(source.raw_components, `${path}.raw_components`);
   const offenseContext = finite(source.offense_context, `${path}.offense_context`);
   const defenseContext = finite(source.defense_context, `${path}.defense_context`);
   const totalContext = finite(source.total_context, `${path}.total_context`);
@@ -513,6 +516,7 @@ function normalizeRow(source, index) {
     raw_other: finite(source.raw_other, `${path}.raw_other`),
     raw_total: finite(source.raw_total, `${path}.raw_total`),
     raw_vc: rawVc,
+    raw_components: rawComponents,
     context_components: contexts,
     offense_context: offenseContext,
     defense_context: defenseContext,
@@ -864,7 +868,7 @@ function rankingRows(prepared, options, teamMetadata) {
   if (sortKey === "hustle_value") {
     throw projectionError(
       "unsupported_projection_sort",
-      "Original responsibility has Offense, Defense, and Other; not Hustle.",
+      "V9 responsibility has Offense, Defense, and Other; not Hustle.",
     );
   }
   const sortDirection = optionChoice(options.sort_direction, ["asc", "desc"], "sort_direction", "desc");
@@ -877,6 +881,7 @@ function rankingRows(prepared, options, teamMetadata) {
     const winsRows = rows.filter((row) => row.win_loss);
     const gamesPlayed = rows.filter((row) => row.appeared).length;
     const wins = rows.filter((row) => row.appeared && row.win_loss).length;
+    const secondsPlayed = sum(rows, (row) => row.seconds_played);
     const valueContributed = sum(rows, (row) => row.final_value_contributed);
     const winsContributed = sum(winsRows, (row) => row.final_value_contributed);
     const offensiveValue = sum(rows, (row) => row.responsibility.offense);
@@ -895,6 +900,14 @@ function rankingRows(prepared, options, teamMetadata) {
       factor,
       sum(winsRows, (row) => row.context_components[factor]),
     ]));
+    const rawComponentTotals = {};
+    for (const row of rows) {
+      for (const family of Object.values(row.raw_components ?? {})) {
+        for (const [key, value] of Object.entries(family ?? {})) {
+          rawComponentTotals[key] = (rawComponentTotals[key] ?? 0) + Number(value ?? 0);
+        }
+      }
+    }
     const offenseContext = sum(rows, (row) => row.offense_context);
     const defenseContext = sum(rows, (row) => row.defense_context);
     const winsOffenseContext = sum(winsRows, (row) => row.offense_context);
@@ -916,6 +929,8 @@ function rankingRows(prepared, options, teamMetadata) {
       player_name: rows.map((row) => row.player_name).sort().at(-1),
       teams,
       games_played: gamesPlayed,
+      seconds_played: secondsPlayed,
+      minutes_played: secondsPlayed / 60,
       wins,
       losses,
       value_contributed: valueContributed,
@@ -985,6 +1000,8 @@ function rankingRows(prepared, options, teamMetadata) {
       opponent_offense_context_pct: percent(selectedContexts.opponent_offense, selectedTotal),
       teammate_defense_context_pct: percent(selectedContexts.teammate_defense, selectedTotal),
       opponent_defense_context_pct: percent(selectedContexts.opponent_defense, selectedTotal),
+      raw_component_totals: rawComponentTotals,
+      similarity_context: selectedContexts,
     });
   }
   rowNumber(

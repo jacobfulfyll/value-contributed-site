@@ -90,9 +90,9 @@ export function buildRankingCardModel({
   return Object.freeze({
     width: RANKING_CARD_WIDTH,
     height: RANKING_CARD_HEIGHT,
-    eyebrow: `NBA PLAYER VALUE · ${isExperiment ? "EXPERIMENT" : "ORIGINAL"}`,
+    eyebrow: `NBA PLAYER VALUE · ${isExperiment ? "EXPERIMENT" : "V9"}`,
     title: season === "All Seasons" ? "Career top 10" : `${cleanText(season, "Current")} top 10`,
-    sourceName: cleanText(sourceName, isExperiment ? "My experiment" : "Original", 80),
+    sourceName: cleanText(sourceName, isExperiment ? "My experiment" : "V9", 80),
     phase: cleanText(phase, "Full season", 48),
     timeMode: cleanText(timeMode, "", 48),
     metricKey: sortBy,
@@ -187,7 +187,7 @@ export async function renderRankingCardPng(model, { documentImpl = globalThis.do
   context.fillStyle = "#10251f";
   context.font = '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   context.textAlign = "center";
-  context.fillText(model.isExperiment ? "EXPERIMENT" : "ORIGINAL", 914, 95);
+  context.fillText(model.isExperiment ? "EXPERIMENT" : "V9", 914, 95);
 
   context.textAlign = "left";
   context.fillStyle = "#52635d";
@@ -240,7 +240,7 @@ export async function renderRankingCardPng(model, { documentImpl = globalThis.do
   context.font = '500 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   context.textAlign = "right";
   context.fillText(
-    model.isExperiment ? "CALCULATED LOCALLY · IMAGE ONLY" : "ORIGINAL PLAYER VALUE RANKINGS",
+    model.isExperiment ? "CALCULATED LOCALLY · IMAGE ONLY" : "V9 PLAYER VALUE RANKINGS",
     1022,
     1254,
   );

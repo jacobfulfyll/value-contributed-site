@@ -51,46 +51,6 @@
   min-width: 0;
 }
 
-.official-profile-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.official-profile-card {
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-top: 3px solid var(--accent-deep);
-  border-radius: 13px;
-  background: #fbfaf5;
-}
-
-.official-profile-card h3 {
-  min-height: 2.5em;
-  margin-bottom: 5px;
-  font-size: 0.95rem;
-  line-height: 1.25;
-}
-
-.profile-receipt {
-  margin: 0 0 14px;
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.67rem;
-}
-
-.profile-facts {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 7px 12px;
-  margin: 0;
-  font-size: 0.76rem;
-}
-
-.profile-facts dt { color: var(--muted); }
-.profile-facts dd { margin: 0; font-weight: 800; }
-
 .method-section {
   scroll-margin-top: 24px;
   margin-bottom: 18px;
@@ -110,13 +70,16 @@
   letter-spacing: -0.035em;
 }
 
-.method-section h3,
-.method-section h4 {
-  margin-top: 0;
+.method-section h3 {
+  margin: 30px 0 10px;
+  font-size: 1rem;
+}
+
+.method-section h3:first-of-type {
+  margin-top: 26px;
 }
 
 .method-section > p:not(.section-label),
-.section-heading-row p,
 .method-lede {
   max-width: 850px;
   color: var(--muted);
@@ -136,6 +99,22 @@
 .method-lede strong,
 .method-lede em {
   color: var(--ink);
+}
+
+.method-link {
+  color: var(--accent-deep);
+  font-weight: 800;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .calculation-steps {
@@ -182,172 +161,30 @@
   line-height: 1.5;
 }
 
-.definition-callout {
-  padding: 17px 19px;
-  border-left: 4px solid var(--accent-deep);
-  border-radius: 0 10px 10px 0;
+.definition-list {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 10px 18px;
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+}
+
+.definition-list dt {
+  font-weight: 850;
+}
+
+.definition-list dd {
+  margin: 0;
+}
+
+.definition-list dd {
   color: var(--muted);
-  background: rgb(31 107 80 / 7%);
-  font-size: 0.9rem;
+  font-weight: 400;
   line-height: 1.55;
 }
 
-.definition-callout strong {
-  color: var(--ink);
-}
-
-.section-heading-row {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.legend-pills {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-
-.credit-pill,
-.penalty-pill,
-.transfer-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 0.64rem;
-  font-weight: 850;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.credit-pill {
-  color: #164f3c;
-  background: #dcebdc;
-}
-
-.penalty-pill {
-  color: var(--danger);
-  background: #f2dcdc;
-}
-
-.transfer-pill {
-  color: #5f4a12;
-  background: #f0e5bd;
-}
-
-.action-group + .action-group {
-  margin-top: 30px;
-  padding-top: 27px;
-  border-top: 1px solid var(--line);
-}
-
-.action-group h3 {
-  margin-bottom: 6px;
-  font-size: 1rem;
-}
-
-.action-group-summary {
-  max-width: 760px;
-  margin-bottom: 15px;
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.5;
-}
-
-.action-card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.action-card {
-  display: flex;
-  min-width: 0;
-  min-height: 185px;
-  flex-direction: column;
-  padding: 17px;
-  border: 1px solid var(--line);
-  border-top: 3px solid var(--accent-deep);
-  border-radius: 12px;
-  background: #fbfaf5;
-}
-
-.action-penalty {
-  border-top-color: var(--danger);
-}
-
-.action-transfer {
-  border-top-color: #a6852d;
-}
-
-.action-card-heading {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 15px;
-}
-
-.action-card h4 {
-  margin-bottom: 0;
-  font-size: 0.9rem;
-  line-height: 1.3;
-}
-
-.action-value {
-  flex: 0 0 auto;
-  color: var(--accent-deep);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.7rem;
-  line-height: 1;
-}
-
-.action-penalty .action-value {
-  color: var(--danger);
-}
-
-.action-basis {
-  margin: 8px 0 11px;
-  color: var(--muted);
-  font-size: 0.69rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.action-explanation {
-  flex: 1;
-  margin-bottom: 15px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
-
-.action-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.action-key {
-  overflow: hidden;
-  color: #7f8b85;
-  font-size: 0.61rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.method-loading {
-  padding: 60px 0;
-  color: var(--muted);
-  text-align: center;
-}
-
 .method-table-wrap {
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -365,12 +202,31 @@
   background: transparent;
 }
 
-.method-table th {
+.method-table thead th {
   background: #f1efe8;
 }
 
+.method-table tfoot th,
+.method-table tfoot td {
+  border-top: 2px solid var(--line);
+  font-weight: 850;
+}
+
 .compact-method-table {
-  min-width: 620px;
+  min-width: 520px;
+}
+
+.method-table-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.method-table-grid > div,
+.constant-group,
+.example-team {
+  min-width: 0;
 }
 
 .rate-value-cell {
@@ -379,30 +235,113 @@
 }
 
 .method-note {
+  max-width: 850px;
   margin: 13px 2px 0;
-  font-size: 0.78rem;
+  color: var(--muted);
+  font-size: 0.79rem;
+  line-height: 1.55;
 }
 
-.defense-rate-grid {
+.method-details {
+  margin-top: 22px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fbfaf5;
+}
+
+.method-details summary {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.method-details .profile-facts {
+  margin-top: 12px;
+}
+
+.profile-facts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: 1fr auto;
+  gap: 7px 12px;
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.profile-facts dt { color: var(--muted); }
+.profile-facts dd { margin: 0; font-weight: 800; }
+
+.evidence-list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.75;
+}
+
+.example-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
   margin-top: 24px;
 }
 
-.defense-rate-grid h3 {
-  margin-bottom: 9px;
+.example-team h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+.example-team h3 strong {
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+.example-team-result {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.example-table {
+  min-width: 620px;
+}
+
+.example-total-cell {
+  color: var(--accent-deep);
+  font-weight: 850;
+}
+
+.evidence-negative {
+  color: #a3402f;
+  font-weight: 800;
+}
+
+.constant-group + .constant-group {
+  margin-top: 26px;
+}
+
+.constant-group h3 {
+  margin: 0 0 10px;
   font-size: 0.83rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.rate-table {
-  min-width: 360px;
+.constant-table {
+  min-width: 680px;
 }
 
-.block-callout {
-  margin-top: 18px;
+.component-note-cell {
+  max-width: 460px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: normal;
 }
 
 .method-section code {
@@ -439,77 +378,6 @@
 
 .formula-stack code {
   width: fit-content;
-}
-
-.factor-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  margin-top: 22px;
-}
-
-.factor-card {
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgb(215 255 84 / 12%);
-}
-
-.factor-card span,
-.factor-card strong {
-  display: block;
-}
-
-.factor-card span {
-  min-height: 42px;
-  color: var(--muted);
-  font-size: 0.68rem;
-  line-height: 1.35;
-}
-
-.factor-card strong {
-  margin-top: 9px;
-  font-size: 0.92rem;
-}
-
-.reference-heading {
-  align-items: start;
-}
-
-.reference-search {
-  flex: 0 0 270px;
-}
-
-.reference-count {
-  margin: 5px 2px 10px;
-  font-size: 0.73rem;
-}
-
-.full-reference-wrap {
-  max-height: 650px;
-  overflow: auto;
-}
-
-.full-reference-table {
-  min-width: 760px;
-}
-
-.full-reference-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.component-key-cell {
-  color: #2c5546;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
-  font-weight: 750;
-}
-
-.component-note-cell {
-  color: var(--muted);
-  font-size: 0.73rem;
 }
 
 .limits-grid {
@@ -552,8 +420,8 @@
     width: 100%;
   }
 
-  .factor-grid {
-    grid-template-columns: repeat(3, 1fr);
+  .definition-list {
+    grid-template-columns: 150px minmax(0, 1fr);
   }
 }
 
@@ -562,58 +430,67 @@
     width: min(100% - 24px, 1240px);
   }
 
-  .site-nav {
-    width: 100%;
-  }
-
-  .site-nav a {
-    flex: 1;
-    text-align: center;
-  }
+  /*
+   * The shared stylesheet already makes the nav one scrollable row of
+   * fixed-width tabs on a phone. This page used to squeeze the six tabs into
+   * the width instead, which broke "Methodology" over two lines at 320 px and
+   * made this the only page whose nav behaved differently. (2026-09-21)
+   */
 
   .method-section {
     padding: 24px 18px;
   }
 
   .calculation-steps,
-  .action-card-grid,
-  .defense-rate-grid,
-  .official-profile-grid,
+  .method-table-grid,
   .limits-grid {
     grid-template-columns: 1fr;
   }
 
-  .section-heading-row {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 4px;
+  .definition-list {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
   }
 
-  .legend-pills {
-    justify-content: flex-start;
+  .definition-list dd {
+    margin: 0 0 10px;
   }
 
   .formula-stack > div {
     grid-template-columns: 1fr;
     gap: 8px;
   }
+}
 
-  .factor-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .reference-search {
-    flex-basis: auto;
+@media (max-width: 460px) {
+  .methodology-nav a {
     width: 100%;
   }
 }
 
-@media (max-width: 460px) {
-  .factor-grid {
-    grid-template-columns: 1fr;
-  }
+/* ===========================================================================
+ * The phone pass (2026-09-21) — Package S3
+ * The shared patterns live in `styles.css`; this page only has to say that its
+ * tables keep their column names.
+ * =========================================================================== */
 
+@media (max-width: 760px) {
+  /*
+   * A worked example and a constants table are read by column, so they stay
+   * real tables and scroll inside `.method-table-wrap`. Without this the
+   * shared card layout turned each one into an unlabelled grid of numbers —
+   * the headers were clipped and the cells carry no `data-label`.
+   * (Measured at 375 px on 2026-09-21: all eleven tables.)
+   */
+  .methodology-shell .method-table th { white-space: nowrap; }
+  .methodology-shell .method-table td { vertical-align: top; }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .method-details summary,
   .methodology-nav a {
-    width: 100%;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
   }
 }

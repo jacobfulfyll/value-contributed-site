@@ -1,3 +1,10 @@
+// Side-effect import: name-fold.js is a classic script in the same UMD shape as
+// team-directory.js, and it carries the site's one name-folding rule — the same
+// rule `src/name_search.py` runs in Python and in SQL.
+import "./name-fold.js";
+
+const { matchesName } = globalThis.ValueContributedNameFold;
+
 const ADDITIVE_FIELDS = Object.freeze([
   "games_played",
   "wins",
@@ -24,6 +31,14 @@ const ADDITIVE_FIELDS = Object.freeze([
   "side_context_raw_value",
   "offense_context_value",
   "defense_context_value",
+]);
+
+// A statistic may not publish the six per-factor context amounts; V9 and V11
+// both do, but a deployment without the V11 context breakdown publishes all six
+// as null. They sum only when every selected season carries them; when none
+// does the merged row leaves them blank. A mix of present and absent is an
+// error, because a partial sum would read as a real amount.
+const FACTOR_CONTEXT_FIELDS = Object.freeze([
   "general_offense_context_value",
   "general_defense_context_value",
   "teammate_offense_context_value",
@@ -31,6 +46,8 @@ const ADDITIVE_FIELDS = Object.freeze([
   "teammate_defense_context_value",
   "opponent_defense_context_value",
 ]);
+
+const OPTIONAL_ADDITIVE_FIELDS = Object.freeze(["seconds_played", "minutes_played"]);
 
 const IDENTITY_FIELDS = Object.freeze([
   "release_id",
@@ -104,6 +121,7 @@ function ratio(numerator, denominator) {
 }
 
 function percent(numerator, denominator) {
+  if (numerator === null || numerator === undefined) return null;
   return denominator === 0 ? null : (100 * numerator) / denominator;
 }
 
@@ -209,9 +227,15 @@ export function mergeSeasonRankingPayloads(payloads, {
       if (!byPlayer.has(playerId)) {
         byPlayer.set(playerId, {
           player_id: playerId,
-          player_name: String(sourceRow.player_name || `NBA ID ${playerId}`),
+          player_name: String(sourceRow.player_name || "Unknown player"),
           _values: Object.fromEntries(ADDITIVE_FIELDS.map((field) => [field, []])),
+          _optionalValues: Object.fromEntries(OPTIONAL_ADDITIVE_FIELDS.map((field) => [field, []])),
+          _factorValues: Object.fromEntries(FACTOR_CONTEXT_FIELDS.map((field) => [field, []])),
+          _factorMissing: 0,
+          _factorRows: 0,
           _teams: new Map(),
+          _rawComponentTotals: {},
+          _similarityContext: {},
         });
       }
       const target = byPlayer.get(playerId);
@@ -221,9 +245,30 @@ export function mergeSeasonRankingPayloads(payloads, {
       for (const field of ADDITIVE_FIELDS) {
         target._values[field].push(finiteNumber(sourceRow[field], field));
       }
+      target._factorRows += 1;
+      if (FACTOR_CONTEXT_FIELDS.every((field) => sourceRow[field] === null || sourceRow[field] === undefined)) {
+        target._factorMissing += 1;
+      } else {
+        for (const field of FACTOR_CONTEXT_FIELDS) {
+          target._factorValues[field].push(finiteNumber(sourceRow[field], field));
+        }
+      }
+      for (const field of OPTIONAL_ADDITIVE_FIELDS) {
+        if (sourceRow[field] !== null && sourceRow[field] !== undefined) {
+          target._optionalValues[field].push(finiteNumber(sourceRow[field], field));
+        }
+      }
       for (const team of sourceRow.teams || []) {
         const teamId = String(team?.id ?? team?.abbreviation ?? team?.name ?? "");
         if (teamId && !target._teams.has(teamId)) target._teams.set(teamId, { ...team });
+      }
+      for (const [key, value] of Object.entries(sourceRow.raw_component_totals ?? {})) {
+        target._rawComponentTotals[key] = (target._rawComponentTotals[key] ?? 0)
+          + finiteNumber(value, `raw_component_totals.${key}`);
+      }
+      for (const [key, value] of Object.entries(sourceRow.similarity_context ?? {})) {
+        target._similarityContext[key] = (target._similarityContext[key] ?? 0)
+          + finiteNumber(value, `similarity_context.${key}`);
       }
     }
   });
@@ -235,8 +280,20 @@ export function mergeSeasonRankingPayloads(payloads, {
       player_id: target.player_id,
       player_name: target.player_name,
       teams: [...target._teams.values()],
+      raw_component_totals: { ...target._rawComponentTotals },
+      similarity_context: { ...target._similarityContext },
     };
     for (const field of ADDITIVE_FIELDS) row[field] = fsum(target._values[field]);
+    for (const field of OPTIONAL_ADDITIVE_FIELDS) {
+      row[field] = target._optionalValues[field].length
+        ? fsum(target._optionalValues[field]) : null;
+    }
+    if (target._factorMissing !== 0 && target._factorMissing !== target._factorRows) {
+      throw new Error("Only some selected seasons publish the per-factor context amounts.");
+    }
+    for (const field of FACTOR_CONTEXT_FIELDS) {
+      row[field] = target._factorMissing ? null : fsum(target._factorValues[field]);
+    }
     row.value_per_win = ratio(row.wins_contributed, row.wins);
     row.value_per_game = ratio(row.value_contributed, row.games_played);
     row.value_per_game_rank = null;
@@ -283,9 +340,11 @@ export function mergeSeasonRankingPayloads(payloads, {
   rows.sort((left, right) => compareNullable(left[sortKey], right[sortKey], sortDirection)
     || comparePlayerId(left, right));
   rows.forEach((row, index) => { row.rank = index + 1; });
-  const normalizedSearch = String(search).trim().toLocaleLowerCase();
-  const searched = normalizedSearch
-    ? rows.filter((row) => row.player_name.toLocaleLowerCase().includes(normalizedSearch))
+  // The merged table is searched by the site's one folding rule, so a merged
+  // selection answers "jokic" exactly as a single season does.
+  const needle = String(search ?? "").trim();
+  const searched = needle
+    ? rows.filter((row) => matchesName(row.player_name, needle))
     : rows;
 
   return {
