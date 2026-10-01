@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 380" role="img" aria-labelledby="title description">
-  <title id="title">Player silhouette</title>
-  <description id="description">Fallback image used when an NBA headshot is unavailable.</description>
-  <rect width="520" height="380" rx="28" fill="#e8e5dc"/>
-  <circle cx="260" cy="126" r="67" fill="#607068"/>
-  <path d="M111 349c14-101 70-151 149-151s135 50 149 151" fill="#607068"/>
-</svg>

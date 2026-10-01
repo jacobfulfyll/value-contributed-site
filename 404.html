@@ -1,53 +1,30 @@
 <!doctype html>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="That Value Contributed page is not here." />
-<title>Value Contributed — page not found</title>
-<style>
-  body { margin: 0; padding: 4rem 1.5rem; color: #13251f;
-         background: radial-gradient(circle at 92% 0%, rgb(215 255 84 / 30%),
-                     transparent 28rem) #f4f0e7;
-         font: 16px/1.6 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont,
-               "Segoe UI", sans-serif; }
-  main { max-width: 34rem; margin: 0 auto; }
-  h1 { font-size: clamp(2rem, 5vw, 2.75rem); line-height: 1.1; margin: 0 0 1rem; }
-  p { color: #607068; }
-  a { color: #1f6b50; font-weight: 600; }
-  ul { margin: 1.25rem 0 0; padding: 0; list-style: none;
-        display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; }
-</style>
-<main>
-  <h1>That page is not here</h1>
-  <p>Value Contributed has a rankings table, a season view, player and team
-     pages and a page describing how the statistic is calculated.</p>
-  <ul id="not-found-tabs">
-    <li><a href="./">Rankings</a></li>
-    <li><a href="./seasons/">Seasons</a></li>
-    <li><a href="./players/">Players</a></li>
-    <li><a href="./teams/">Teams</a></li>
-    <li><a href="./how-it-works/">Methodology</a></li>
-  </ul>
-</main>
-<script>
-  /* This one file answers every missing path at every depth, and the browser
-     keeps the address it asked for, so "./" is only the site root when the
-     missing path was one level deep. The site root is whatever comes before the
-     first segment this site owns; when none of them is in the path, the
-     relative links above are already right. */
-  (function fixNotFoundLinks() {
-    var owned = ["players", "teams", "seasons", "compare", "how-it-works",
-                 "experiments", "data", "api", "dashboard-assets"];
-    var parts = location.pathname.split("/");
-    for (var index = 1; index < parts.length; index += 1) {
-      if (owned.indexOf(parts[index]) === -1) continue;
-      var base = parts.slice(0, index).join("/") + "/";
-      var links = document.querySelectorAll("#not-found-tabs a");
-      for (var link = 0; link < links.length; link += 1) {
-        links[link].setAttribute(
-          "href", base + links[link].getAttribute("href").replace(/^\.\//, ""),
-        );
-      }
-      return;
-    }
-  })();
-</script>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Wins Contributed</title>
+    <meta name="description" content="Wins Contributed: every win and every possession, 2017–2026, told as a story." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400..800&display=swap" rel="stylesheet" />
+    <!--
+      The loading screen, after Color Lock's splash: "NBA" over "Wins Contributed" and The Banana
+      Standard's logo fade in over 1s on first paint, before any script loads.
+      src/splash.ts fades them out over 1s once 1.5s have passed and the app is
+      ready, then removes the screen and lets the story start.
+    -->
+    <style>#splash{z-index:1000;color:oklch(26% .035 260);background:oklch(97.5% .014 85);place-items:center;font-family:Rubik,system-ui,sans-serif;display:grid;position:fixed;inset:0}.splash-mark{opacity:0;flex-direction:column;align-items:center;gap:12px;animation:1s ease-in forwards splash-in;display:flex}.splash-mark.out{opacity:1;animation:1s ease-out forwards splash-out}.splash-title{letter-spacing:-.03em;text-align:center;white-space:nowrap;margin:0;font-size:min(40px,10vw);font-weight:700;line-height:1.05}.splash-logo{width:150px;height:auto;display:block}@keyframes splash-in{0%{opacity:0}to{opacity:1}}@keyframes splash-out{0%{opacity:1}to{opacity:0}}@media (prefers-reduced-motion:reduce){.splash-mark,.splash-mark.out{opacity:1;animation:none}}</style>
+    <script type="module" crossorigin src="/value-contributed-site/assets/index-C84lowLc.js"></script>
+    <link rel="stylesheet" crossorigin href="/value-contributed-site/assets/index-CXi0agyN.css">
+  </head>
+  <body>
+    <div id="splash" aria-hidden="true">
+      <div class="splash-mark">
+        <p class="splash-title">NBA<br />Wins Contributed</p>
+        <img class="splash-logo" src="/value-contributed-site/assets/banana-standard-99PY8yQM.png" alt="" width="150" height="55" fetchpriority="high" />
+      </div>
+    </div>
+    <div id="root"></div>
+  </body>
+</html>
